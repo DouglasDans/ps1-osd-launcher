@@ -16,6 +16,7 @@ APPS_INI = os.path.join(BASE_DIR, "apps.ini")
 INTRO_VIDEO = os.path.join(BASE_DIR, "assets", "intro.mp4")
 BIOS_TRACE = os.path.join(BASE_DIR, "assets", "bios_intro.trace")
 BIOS_AUDIO = os.path.join(BASE_DIR, "assets", "bios_intro.wav")
+BIOS_TEXTURES = os.path.join(BASE_DIR, "assets", "bios_textures")
 # Depois do corte, a BIOS mostra o fundo roxo sem o menu (last_frame.png)
 # com o fim do jingle tocando; segura por esse tempo antes do nosso menu.
 BIOS_MENU_DELAY = 1.0
@@ -68,7 +69,8 @@ def main() -> None:
     pygame.mouse.set_visible(False)
 
     if not bios_intro.play(screen, BIOS_TRACE, BIOS_AUDIO, BIOS_INTRO_RESOLUTION,
-                           background=SPLASH_IMAGE, background_seconds=BIOS_MENU_DELAY):
+                           background=SPLASH_IMAGE, background_seconds=BIOS_MENU_DELAY,
+                           textures_dir=BIOS_TEXTURES):
         play_intro(screen, INTRO_VIDEO, SPLASH_IMAGE)
     wait_system_ready()
     bios_intro.stop_audio()

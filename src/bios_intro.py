@@ -3,7 +3,8 @@
 Replays assets/bios_intro.trace (recorded from the BIOS by tools/psxtrace):
 the GPU commands are drawn field by field, against the wall clock, by
 src.psx.hires the way an upscaling emulator would (output resolution,
-progressive, true color, JINC2-filtered textures). The jingle is synthesized ahead of time from the same trace by
+progressive, true color; textures replaced by HD versions when available,
+JINC2-filtered otherwise). The jingle is synthesized ahead of time from the same trace by
 src.psx.spu (assets/bios_intro.wav) and played as a single sound.
 
 The trace ends where the BIOS cuts from the Sony screen to its menu. Its
@@ -18,7 +19,7 @@ import time
 
 import pygame
 
-from src.psx import replay
+from src.psx import replay, textures
 from src.psx.hires import HiResGPU
 from src.psx.spu import SAMPLE_RATE
 from src.psx.trace import load
@@ -31,13 +32,15 @@ _NATIVE_W, _NATIVE_H = 640, 480
 
 def play(screen: pygame.Surface, trace_path: str, audio_path: str,
          resolution: tuple[int, int] | None = None, texture_filter: str = "jinc2",
-         background: str | None = None, background_seconds: float = 0.0) -> bool:
+         background: str | None = None, background_seconds: float = 0.0,
+         textures_dir: str | None = None) -> bool:
     """Plays the intro up to the cut to the BIOS menu, then shows background
     for background_seconds. Returns False when the trace isn't available, so
     the caller can fall back to something else.
 
     resolution is the internal rendering resolution (default: the screen's);
-    a lower one is scaled up to the screen."""
+    a lower one is scaled up to the screen. textures_dir holds HD texture
+    replacements (src.psx.textures)."""
     if not os.path.exists(trace_path):
         log.warning("Trace da intro não encontrado: %s", trace_path)
         return False
@@ -48,11 +51,12 @@ def play(screen: pygame.Surface, trace_path: str, audio_path: str,
         return False
 
     w, h = resolution or screen.get_size()
-    gpu = HiResGPU(scale=(w / _NATIVE_W, h / _NATIVE_H), texture_filter=texture_filter)
+    hd = textures.load(textures_dir) if textures_dir else {}
+    gpu = HiResGPU(scale=(w / _NATIVE_W, h / _NATIVE_H), texture_filter=texture_filter, replacements=hd)
     t0 = time.perf_counter()
     gpu.prepare(trace)
-    log.info("Reproduzindo intro da BIOS: %d fields, %dx%d, texturas %s (preparo %.2fs)",
-             len(trace.fields), w, h, texture_filter, time.perf_counter() - t0)
+    log.info("Reproduzindo intro da BIOS: %d fields, %dx%d, %d texturas HD, filtro %s (preparo %.2fs)",
+             len(trace.fields), w, h, len(hd), texture_filter, time.perf_counter() - t0)
     sound = _load_sound(audio_path)
     if sound:
         sound.play()

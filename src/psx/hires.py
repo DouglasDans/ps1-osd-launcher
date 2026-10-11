@@ -8,7 +8,8 @@ drawn into a high-resolution RGB copy of the VRAM:
 - vertices are scaled by (sx, sy), so edges are as sharp as the output allows;
 - progressive: 480i field line skipping doesn't apply;
 - true color: 24-bit colors and gouraud shading, no 15-bit reduction, no dither;
-- textures can be filtered (JINC2) instead of sampled nearest.
+- textures can be filtered (JINC2) instead of sampled nearest, or replaced
+  by HD versions (src.psx.textures), sampled bilinearly.
 
 Pixels are sampled at their centers in native coordinates: at scale 1 the
 coverage of axis-aligned shapes is the same as the console's.
@@ -18,7 +19,8 @@ import math
 
 import numpy as np
 
-from src.psx.gpu import GPU, VRAM_H, VRAM_W
+from src.psx.gpu import GPU, VRAM_H, VRAM_W, rgb8
+from src.psx.textures import texture_key, texture_rect
 
 FILTERS = ("nearest", "jinc2")
 
@@ -29,12 +31,6 @@ _JINC2_WINDOW_SINC = 0.44
 _JINC2_SINC = 0.82
 _JINC2_AR_STRENGTH = 0.8
 _JINC2_OVERSAMPLE = 4  # filtered texture grid: samples per texel and axis
-
-
-def _rgb8(px: np.ndarray) -> np.ndarray:
-    """15-bit pixels -> (..., 3) 8-bit channels, expanded like the video DAC."""
-    c = np.stack([px & 0x1F, px >> 5 & 0x1F, px >> 10 & 0x1F], axis=-1).astype(np.uint8)
-    return (c << 3) | (c >> 2)
 
 
 def _jinc2_weight(d: np.ndarray) -> np.ndarray:
@@ -73,7 +69,8 @@ def jinc2(fetch, u: np.ndarray, v: np.ndarray):
 
 
 class HiResGPU(GPU):
-    def __init__(self, scale: tuple[float, float] = (3, 2.25), texture_filter: str = "jinc2") -> None:
+    def __init__(self, scale: tuple[float, float] = (3, 2.25), texture_filter: str = "jinc2",
+                 replacements: dict[str, np.ndarray] | None = None) -> None:
         if texture_filter not in FILTERS:
             raise ValueError(f"unknown texture filter {texture_filter!r} (use one of {FILTERS})")
         self.sx, self.sy = float(scale[0]), float(scale[1])
@@ -82,6 +79,9 @@ class HiResGPU(GPU):
         self._copying = False
         self._tex_cache: dict = {}
         self._warm_only = False  # see prepare()
+        self.replacements = replacements or {}
+        self._key_cache: dict = {}
+        self._sprite_cache: dict = {}
         super().__init__()
 
     # ------------------------------------------------------- coordinates
@@ -130,7 +130,7 @@ class HiResGPU(GPU):
             return
         cols = (np.floor((np.arange(X0, X1) + 0.5) / self.sx).astype(np.int64)) & 0x3FF
         rows = (np.floor((np.arange(Y0, Y1) + 0.5) / self.sy).astype(np.int64)) & 0x1FF
-        self.hires[Y0:Y1, X0:X1] = _rgb8(self.vram[np.ix_(rows, cols)])
+        self.hires[Y0:Y1, X0:X1] = rgb8(self.vram[np.ix_(rows, cols)])
 
     def _copy(self, p: list[int]) -> None:
         self._copying = True
@@ -169,7 +169,7 @@ class HiResGPU(GPU):
     def _triangle(self, v, c, uv, *, gouraud, textured, semi, raw, clut) -> None:
         super()._triangle(v, c, uv, gouraud=gouraud, textured=textured, semi=semi, raw=raw, clut=clut)
         if self._warm_only:
-            if textured and self.texture_filter != "nearest":
+            if textured and self._replacement(uv, clut) is None and self.texture_filter != "nearest":
                 self._filtered_texture(uv, clut)
             return
 
@@ -194,11 +194,14 @@ class HiResGPU(GPU):
 
         xc = (np.arange(X0, X1) + 0.5) / self.sx
         yc = (np.arange(Y0, Y1) + 0.5) / self.sy
-        inside = np.ones((Y1 - Y0, X1 - X0), dtype=bool)
-        for (ax, ay), (bx, by) in ((v[0], v[1]), (v[1], v[2]), (v[2], v[0])):
-            w = (bx - ax) * (yc - ay)[:, None] - (by - ay) * (xc - ax)[None, :]
-            top_left = by < ay or (by == ay and bx > ax)
-            inside &= (w > 0) | ((w == 0) & top_left) if top_left else (w > 0)
+
+        def coverage():
+            inside = np.ones((Y1 - Y0, X1 - X0), dtype=bool)
+            for (ax, ay), (bx, by) in ((v[0], v[1]), (v[1], v[2]), (v[2], v[0])):
+                w = (bx - ax) * (yc - ay)[:, None] - (by - ay) * (xc - ax)[None, :]
+                top_left = by < ay or (by == ay and bx > ax)
+                inside &= (w > 0) | ((w == 0) & top_left) if top_left else (w > 0)
+            return inside
 
         def gradient(a0, a1, a2):
             nx = (a1 - a0) * (y2 - y0) - (a2 - a0) * (y1 - y0)
@@ -209,6 +212,7 @@ class HiResGPU(GPU):
             # untextured opaque (the background and the diamond): whole-bbox
             # planes written through the coverage mask, one channel at a time
             region = self.hires[Y0:Y1, X0:X1]
+            inside = coverage()
             fx, fy = (xc - x0).astype(np.float32), (yc - y0).astype(np.float32)
             for k in range(3):
                 if gouraud:
@@ -219,10 +223,21 @@ class HiResGPU(GPU):
                     np.copyto(region[..., k], c[0][k], where=inside, casting="unsafe")
             return
 
-        iy, ix = np.nonzero(inside)
-        if iy.size == 0:
-            return
-        dx, dy = xc[ix] - x0, yc[iy] - y0
+        # covered pixels and sampled texels depend only on the geometry and
+        # the texture: static sprites (the logo text) are sampled once
+        key = None
+        if textured:
+            key = (tuple(v), tuple(uv), clut, self.texpage, self.tex_window, (X0, X1, Y0, Y1),
+                   self._texture_digest(clut))
+        hit = self._sprite_cache.get(key) if key else None
+        if hit:
+            iy, ix, dx, dy, sampled = hit
+        else:
+            iy, ix = np.nonzero(coverage())
+            if iy.size == 0:
+                return
+            dx, dy = xc[ix] - x0, yc[iy] - y0
+            sampled = None
 
         def interp(a0, a1, a2):
             gx, gy = gradient(a0, a1, a2)
@@ -237,9 +252,14 @@ class HiResGPU(GPU):
         alpha = None
         stp = None
         if textured:
-            u = interp(uv[0][0], uv[1][0], uv[2][0])
-            tv = interp(uv[0][1], uv[1][1], uv[2][1])
-            rgb, alpha, stp = self._sample(u, tv, uv, clut)
+            if sampled is None:
+                u = interp(uv[0][0], uv[1][0], uv[2][0])
+                tv = interp(uv[0][1], uv[1][1], uv[2][1])
+                sampled = self._sample(u, tv, uv, clut)
+                if len(self._sprite_cache) > 64:
+                    self._sprite_cache.clear()
+                self._sprite_cache[key] = (iy, ix, dx, dy, sampled)
+            rgb, alpha, stp = sampled
             out = rgb if raw else rgb * col / 128.0
         else:
             out = col
@@ -266,9 +286,12 @@ class HiResGPU(GPU):
     def _texels(self, iu: np.ndarray, iv: np.ndarray, clut):
         """Integer texel coordinates -> (rgb float (n, 3), alpha, stp bit)."""
         texel = self._fetch_texels(iu & 0xFF, iv & 0xFF, clut).astype(np.int64)
-        return _rgb8(texel).astype(np.float64), (texel != 0).astype(np.float64), (texel >> 15 & 1) == 1
+        return rgb8(texel).astype(np.float64), (texel != 0).astype(np.float64), (texel >> 15 & 1) == 1
 
     def _sample(self, u: np.ndarray, v: np.ndarray, uv, clut):
+        hd = self._replacement(uv, clut)
+        if hd is not None:
+            return self._bilinear(hd, u, v, uv)
         if self.texture_filter == "nearest":
             return self._texels(np.floor(u).astype(np.int64), np.floor(v).astype(np.int64), clut)
 
@@ -277,6 +300,36 @@ class HiResGPU(GPU):
         gx = np.clip(np.floor((u - u0) * f).astype(np.int64), 0, img.shape[1] - 1)
         gy = np.clip(np.floor((v - v0) * f).astype(np.int64), 0, img.shape[0] - 1)
         return img[gy, gx], a_img[gy, gx], stp_img[gy, gx]
+
+    def _replacement(self, uv, clut) -> np.ndarray | None:
+        """The HD version of the texels this primitive reads, if there is one."""
+        if not self.replacements:
+            return None
+        u0, u1 = min(t[0] for t in uv), max(t[0] for t in uv)
+        v0, v1 = min(t[1] for t in uv), max(t[1] for t in uv)
+        cache_key = (self.texpage, clut, self.tex_window, u0, u1, v0, v1, self._texture_digest(clut))
+        key = self._key_cache.get(cache_key)
+        if key is None:
+            key = texture_key(texture_rect(self, uv, clut))
+            if len(self._key_cache) > 256:
+                self._key_cache.clear()
+            self._key_cache[cache_key] = key
+        return self.replacements.get(key)
+
+    @staticmethod
+    def _bilinear(hd: np.ndarray, u: np.ndarray, v: np.ndarray, uv):
+        """Samples an HD texture covering texels [u0, u1] x [v0, v1]."""
+        u0, u1 = min(t[0] for t in uv), max(t[0] for t in uv)
+        v0, v1 = min(t[1] for t in uv), max(t[1] for t in uv)
+        h, w = hd.shape[:2]
+        x = np.clip((u - u0) * (w / (u1 + 1 - u0)) - 0.5, 0, w - 1)
+        y = np.clip((v - v0) * (h / (v1 + 1 - v0)) - 0.5, 0, h - 1)
+        x0, y0 = np.floor(x).astype(np.int64), np.floor(y).astype(np.int64)
+        x1, y1 = np.minimum(x0 + 1, w - 1), np.minimum(y0 + 1, h - 1)
+        fx, fy = (x - x0)[:, None], (y - y0)[:, None]
+        px = ((hd[y0, x0] * (1 - fx) + hd[y0, x1] * fx) * (1 - fy)
+              + (hd[y1, x0] * (1 - fx) + hd[y1, x1] * fx) * fy)
+        return px[:, :3], px[:, 3], None
 
     def _filtered_texture(self, uv, clut):
         """The texels a primitive with these vertex UVs can read, JINC2-filtered
@@ -320,19 +373,17 @@ class HiResGPU(GPU):
     # ----------------------------------------------------------- warm-up
 
     def prepare(self, trace) -> None:
-        """Filters, ahead of time, every texture the trace draws: JINC2 is
-        far too slow to run the first time a sprite shows up on screen. Runs
-        the trace through a copy that only updates VRAM and fills the cache."""
+        """Filters, ahead of time, every texture the trace draws that has no
+        HD replacement: JINC2 is far too slow to run the first time a sprite
+        shows up on screen. Runs the trace through a copy that only updates
+        VRAM and fills the caches."""
         if self.texture_filter == "nearest":
             return
-        warmer = HiResGPU.__new__(HiResGPU)
-        GPU.__init__(warmer)
-        warmer.sx, warmer.sy = self.sx, self.sy
-        warmer.texture_filter = self.texture_filter
-        warmer.hires = np.zeros((1, 1, 3), dtype=np.uint8)
-        warmer._copying = False
+        warmer = HiResGPU(scale=(self.sx, self.sy), texture_filter=self.texture_filter,
+                          replacements=self.replacements)
         warmer._warm_only = True
         warmer._tex_cache = self._tex_cache
+        warmer._key_cache = self._key_cache
         for i, f in enumerate(trace.fields):
             warmer.field = i & 1
             for port, word in f.gpu:

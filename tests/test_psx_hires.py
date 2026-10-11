@@ -222,3 +222,24 @@ def test_prepare_does_not_draw_anything():
 
     assert not gpu.display_rgb().any()
     assert not gpu.vram.any()
+
+
+def test_replacement_textures_are_drawn_instead_of_the_native_ones(monkeypatch):
+    from src.psx import hires, textures
+    from src.psx.trace import Field, Trace
+
+    rec = _Recorder()
+    _sprite_scene(rec)
+    (key, img), = textures.collect(Trace([Field(1000, rec.words)], [])).items()
+    hd = np.zeros((16, 16, 4), dtype=np.float32)
+    hd[..., 0] = 200.0  # a red HD version, opaque on its left half only
+    hd[:, :8, 3] = 1.0
+    monkeypatch.setattr(hires, "jinc2", lambda *a: (_ for _ in ()).throw(AssertionError("filtered")))
+    gpu = HiResGPU(scale=(2, 2), texture_filter="jinc2", replacements={key: hd})
+
+    for port, word in rec.words:
+        (gpu.gp1 if port else gpu.gp0)(word)
+
+    sprite = gpu.display_rgb()[200:208, 200:208]
+    assert sprite[:, :3, 0].min() == 200 and sprite[:, :3, 1].max() == 0
+    assert sprite[:, 5:, 0].max() == 0  # transparent half of the HD texture

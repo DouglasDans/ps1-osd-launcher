@@ -33,6 +33,12 @@ def rgb15(r: int, g: int, b: int) -> int:
     return (r >> 3) | (g >> 3) << 5 | (b >> 3) << 10
 
 
+def rgb8(px: np.ndarray) -> np.ndarray:
+    """15-bit pixels -> (..., 3) 8-bit channels, expanded like the video DAC."""
+    c = np.stack([px & 0x1F, px >> 5 & 0x1F, px >> 10 & 0x1F], axis=-1).astype(np.uint8)
+    return (c << 3) | (c >> 2)
+
+
 def _sign11(v: int) -> int:
     v &= 0x7FF
     return v - 0x800 if v & 0x400 else v
@@ -437,7 +443,4 @@ class GPU:
         if self.display_off or w == 0 or h == 0:
             return np.zeros((max(h, 1), max(w, 1), 3), dtype=np.uint8)
         x, y = self.display_start
-        px = self.vram[np.ix_(np.arange(y, y + h) & 0x1FF, np.arange(x, x + w) & 0x3FF)]
-        r, g, b = px & 0x1F, px >> 5 & 0x1F, px >> 10 & 0x1F
-        rgb = np.stack([r, g, b], axis=-1).astype(np.uint8)
-        return (rgb << 3) | (rgb >> 2)
+        return rgb8(self.vram[np.ix_(np.arange(y, y + h) & 0x1FF, np.arange(x, x + w) & 0x3FF)])

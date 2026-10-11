@@ -66,6 +66,7 @@ ps1-osd-launcher/
 │   ├── ps1-bios.jpg          # Menu background
 │   ├── bios_intro.trace      # Sony intro recorded from your BIOS — generate it (see below)
 │   ├── bios_intro.wav        # Its jingle, pre-rendered from the trace
+│   ├── bios_textures/        # Optional HD logo textures (Real-ESRGAN)
 │   ├── intro.mp4             # Fallback intro video
 │   ├── gamecontrollerdb.txt  # SDL2 controller mappings
 │   └── fonts/
@@ -102,7 +103,8 @@ steps:
    textures, 15-bit drawing) and `src/psx/hires.py` draws the same commands
    the way DuckStation's enhanced renderer does: at the screen resolution,
    progressive instead of 480i, true color without dithering, and textures
-   filtered with JINC2 (pre-filtered before the intro starts).
+   filtered with JINC2 (pre-filtered before the intro starts) or replaced by
+   HD versions (see below).
    `src/psx/spu.py` synthesizes the audio like the SPU (ADPCM, gaussian
    interpolation, ADSR, reverb with FIR resampling). The audio is
    pre-rendered to a WAV when the trace is recorded; at the cut the launcher
@@ -118,6 +120,18 @@ CD_SPINUP=2 tools/make_bios_intro.sh scph5501.bin   # shorter wait on the logo
 
 Without the trace, the launcher falls back to `assets/intro.mp4`; without the
 WAV, the intro plays silently.
+
+**HD textures (optional).** Like DuckStation's texture replacement packs, the
+logo textures can be swapped for upscaled versions, drawn with bilinear
+filtering (without them, JINC2 filtering is used). They are made with
+[Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN/releases) (the
+`realesrgan-ncnn-vulkan` release, which runs on any Vulkan GPU) and the
+`realesrgan-x4plus-anime` model, which keeps lettering sharp:
+
+```bash
+REALESRGAN=/path/to/realesrgan-ncnn-vulkan tools/make_bios_intro.sh scph5501.bin
+# also writes assets/bios_textures/<hash>.png
+```
 
 ## Configuring Apps (`apps.ini`)
 
@@ -161,7 +175,7 @@ Generate `assets/bios_intro.trace` and `assets/bios_intro.wav` (see [Sony Intro 
 
 ```bash
 # From your local machine:
-scp assets/bios_intro.trace assets/bios_intro.wav <user>@<pi-ip>:~/ps1-osd-launcher/assets/
+scp -r assets/bios_intro.trace assets/bios_intro.wav assets/bios_textures <user>@<pi-ip>:~/ps1-osd-launcher/assets/
 ```
 
 `intro.mp4` is used when the trace is absent; with neither, the launcher skips the intro.
