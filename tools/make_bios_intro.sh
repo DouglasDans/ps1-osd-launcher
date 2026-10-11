@@ -8,8 +8,9 @@
 # assets/bios_textures/ (HD replacements; JINC2 filtering is used without them).
 #
 # CD_SPINUP (seconds) is how long the empty drive keeps trying to read before
-# the BIOS gives up and cuts to its menu; 4.8 matches the DuckStation
-# recording (the Sony screen holds ~9.5s after it is complete).
+# the BIOS gives up and cuts to its menu. 4.8 matches the DuckStation
+# recording (the Sony screen holds ~9.5s after it is complete); 9.8 holds it
+# 5s longer, covering more of the Pi's boot.
 set -euo pipefail
 
 bios="${1:?usage: $0 <bios.bin>}"
@@ -19,7 +20,7 @@ export PYGAME_HIDE_SUPPORT_PROMPT=1
 [ -x "$python" ] || python=python3
 
 make -s -C "$root/tools/psxtrace"
-CD_SPINUP="${CD_SPINUP:-4.8}" "$root/tools/psxtrace/psxtrace" "$bios" "$root/assets/bios_intro.trace" \
+CD_SPINUP="${CD_SPINUP:-9.8}" "$root/tools/psxtrace/psxtrace" "$bios" "$root/assets/bios_intro.trace" \
     2> >(grep -v '^\[post' >&2)
 (cd "$root" && "$python" -m src.psx.replay assets/bios_intro.trace assets/bios_intro.wav)
 echo "intro salva em $root/assets/bios_intro.{trace,wav}"
