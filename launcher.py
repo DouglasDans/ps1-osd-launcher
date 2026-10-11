@@ -6,14 +6,13 @@ import pygame
 
 from src import bios_intro, controller, logger
 from src.config import load_apps
-from src.intro import hide_tty, play_intro, restore_tty, wait_system_ready
+from src.intro import hide_tty, restore_tty, show_splash, wait_system_ready
 from src.menu import run as run_menu
 
 log = logging.getLogger("ps1.launcher")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 APPS_INI = os.path.join(BASE_DIR, "apps.ini")
-INTRO_VIDEO = os.path.join(BASE_DIR, "assets", "intro.mp4")
 BIOS_TRACE = os.path.join(BASE_DIR, "assets", "bios_intro.trace")
 BIOS_AUDIO = os.path.join(BASE_DIR, "assets", "bios_intro.wav")
 BIOS_TEXTURES = os.path.join(BASE_DIR, "assets", "bios_textures")
@@ -59,8 +58,7 @@ def main() -> None:
         hide_tty()
 
     # Inicializa só o necessário — sem mixer para não ocupar o ALSA
-    # (o menu não tem som; a intro da BIOS abre o mixer e o libera antes do
-    # menu; o fallback em vídeo toca o áudio pelo SDL do ffpyplayer)
+    # (o menu não tem som; a intro da BIOS abre o mixer e o libera antes do menu)
     pygame.display.init()
     pygame.font.init()
     flags = pygame.FULLSCREEN if IS_PI else 0
@@ -71,7 +69,7 @@ def main() -> None:
     if not bios_intro.play(screen, BIOS_TRACE, BIOS_AUDIO, BIOS_INTRO_RESOLUTION,
                            background=SPLASH_IMAGE, background_seconds=BIOS_MENU_DELAY,
                            textures_dir=BIOS_TEXTURES):
-        play_intro(screen, INTRO_VIDEO, SPLASH_IMAGE)
+        show_splash(screen, SPLASH_IMAGE)  # sem a partitura: direto no fundo da BIOS
     wait_system_ready()
     bios_intro.stop_audio()
 

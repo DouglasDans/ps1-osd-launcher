@@ -12,7 +12,7 @@ Built with Python and pygame, it runs over KMSDRM (direct framebuffer) on the Pi
 
 ## Features
 
-- Sony PS1 boot intro rebuilt from the BIOS: GPU commands and SPU writes recorded from the real BIOS code, rasterized and synthesized in pygame (falls back to `assets/intro.mp4`)
+- Sony PS1 boot intro rebuilt from the BIOS: GPU commands and SPU writes recorded from the real BIOS code, redrawn in HD (1080p, true color, HD textures) and synthesized in pygame
 - OSD menu visually faithful to the original PS1 BIOS
 - 100% controller-driven navigation — no keyboard or mouse required
 - Universal controller support via **SDL2 GameController API** + [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) (2200+ mappings)
@@ -27,7 +27,7 @@ Boot
  └── systemd: git pull (auto-update)
       └── venv/bin/python3 launcher.py
             └── pygame: owns the display from boot to shutdown
-                  ├── replays the BIOS intro (bios_intro.trace) or intro.mp4
+                  ├── replays the BIOS intro (bios_intro.trace)
                   ├── reads apps.ini
                   ├── controller navigation
                   └── launches selected app
@@ -51,7 +51,6 @@ Boot
 python3-pygame   (apt)
 python3-numpy    (apt)
 python3-venv     (apt)
-ffpyplayer       (pip, inside the project venv — bundles its own ffmpeg)
 ```
 
 ## Project Structure
@@ -64,10 +63,10 @@ ps1-osd-launcher/
 ├── install.sh                # Pi installation script
 ├── assets/
 │   ├── ps1-bios.jpg          # Menu background
-│   ├── bios_intro.trace      # Sony intro recorded from your BIOS — generate it (see below)
+│   ├── bios_intro.trace      # Sony intro recorded from the BIOS (see below)
 │   ├── bios_intro.wav        # Its jingle, pre-rendered from the trace
-│   ├── bios_textures/        # Optional HD logo textures (Real-ESRGAN)
-│   ├── intro.mp4             # Fallback intro video
+│   ├── bios_textures/        # HD logo textures (Real-ESRGAN)
+│   ├── last_frame.png        # Purple BIOS background shown after the intro
 │   ├── gamecontrollerdb.txt  # SDL2 controller mappings
 │   └── fonts/
 │       └── PressStart2P.ttf  # Menu font
@@ -110,18 +109,19 @@ steps:
    pre-rendered to a WAV when the trace is recorded; at the cut the launcher
    switches to the purple BIOS background and then the menu.
 
-Both files are derived from Sony's BIOS, so they aren't versioned. Generate
-them from your own BIOS dump (a C compiler and `make` are needed):
+The generated files are versioned in `assets/`, so the Pi gets them with the
+usual `git pull`; nothing has to be built there. To regenerate them from a
+BIOS dump (a C compiler and `make` are needed):
 
 ```bash
 tools/make_bios_intro.sh scph5501.bin   # writes assets/bios_intro.{trace,wav}
 CD_SPINUP=2 tools/make_bios_intro.sh scph5501.bin   # shorter wait on the logo
 ```
 
-Without the trace, the launcher falls back to `assets/intro.mp4`; without the
-WAV, the intro plays silently.
+Without the trace, the launcher goes straight to the purple BIOS background;
+without the WAV, the intro plays silently.
 
-**HD textures (optional).** Like DuckStation's texture replacement packs, the
+**HD textures.** Like DuckStation's texture replacement packs, the
 logo textures can be swapped for upscaled versions, drawn with bilinear
 filtering (without them, JINC2 filtering is used). They are made with
 [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN/releases) (the
@@ -169,18 +169,7 @@ INSTALL_DIR="/home/<your-username>/ps1-osd-launcher"
 
 Also update the sudoers line with your Pi username.
 
-### 3. Add the intro (optional)
-
-Generate `assets/bios_intro.trace` and `assets/bios_intro.wav` (see [Sony Intro from the BIOS](#sony-intro-from-the-bios)) on the Pi or on your machine and copy them:
-
-```bash
-# From your local machine:
-scp -r assets/bios_intro.trace assets/bios_intro.wav assets/bios_textures <user>@<pi-ip>:~/ps1-osd-launcher/assets/
-```
-
-`intro.mp4` is used when the trace is absent; with neither, the launcher skips the intro.
-
-### 4. Run the installer
+### 3. Run the installer
 
 ```bash
 bash install.sh
@@ -188,7 +177,7 @@ bash install.sh
 
 The installer:
 - Installs `python3-pygame`, `python3-numpy` and `python3-venv` via apt
-- Creates a venv (with system site packages) and installs `ffpyplayer` into it
+- Creates a venv with system site packages (reuses pygame and numpy from apt)
 - Copies the systemd service to `/etc/systemd/system/`
 - Grants passwordless `shutdown`/`reboot`/launcher-restart permission
 - Silences the boot for a console-like startup:
@@ -198,7 +187,7 @@ The installer:
 
 The launcher service starts right after filesystems and udev are up (before the rest of the boot). After the intro ends, the launcher holds on the last frame until `systemctl is-system-running` leaves `starting` (30s safety timeout), then shows the menu.
 
-### 5. Disable any previous launcher (if applicable)
+### 4. Disable any previous launcher (if applicable)
 
 ```bash
 sudo systemctl disable retroarch.service
@@ -219,8 +208,7 @@ sudo systemctl restart ps1-osd-launcher
 
 ```bash
 # Install dependencies
-sudo apt install python3-pygame
-pip install ffpyplayer
+sudo apt install python3-pygame python3-numpy
 
 # Run
 python3 launcher.py

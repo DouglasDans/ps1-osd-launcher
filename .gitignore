@@ -11,10 +11,5 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Intro da BIOS: derivados do BIOS da Sony, gerados localmente (tools/make_intro_trace.sh)
-assets/bios_intro.trace
-assets/bios_intro.wav
-assets/bios_textures/
+# Binário do tracer da intro (compilado por tools/make_bios_intro.sh)
 tools/psxtrace/psxtrace
-scph*.bin
-*.AppImage
