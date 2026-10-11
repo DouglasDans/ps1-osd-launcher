@@ -98,9 +98,12 @@ steps:
    real one, so the BIOS itself holds the Sony screen; the recording ends
    where it cuts to its menu (plus the SPU tail: the shell keys the jingle
    off and lets the reverb fade).
-2. **Replay** — `src/psx/gpu.py` rasterizes the commands like the PS1 GPU
-   (top-left fill rule, gouraud, CLUT textures, 4x4 dithering, 480i fields)
-   and `src/psx/spu.py` synthesizes the audio like the SPU (ADPCM, gaussian
+2. **Replay** — `src/psx/gpu.py` keeps the PS1 GPU's VRAM (uploads, CLUT
+   textures, 15-bit drawing) and `src/psx/hires.py` draws the same commands
+   the way DuckStation's enhanced renderer does: at the screen resolution,
+   progressive instead of 480i, true color without dithering, and textures
+   filtered with JINC2 (pre-filtered before the intro starts).
+   `src/psx/spu.py` synthesizes the audio like the SPU (ADPCM, gaussian
    interpolation, ADSR, reverb with FIR resampling). The audio is
    pre-rendered to a WAV when the trace is recorded; at the cut the launcher
    switches to the purple BIOS background and then the menu.

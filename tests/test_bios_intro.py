@@ -56,7 +56,7 @@ def test_intro_runs_until_the_last_recorded_field_then_returns(screen, tmp_path)
     elapsed = time.perf_counter() - t0
 
     assert 12 / 60 - 0.02 <= elapsed < 12 / 60 + 0.5
-    assert screen.get_at((160, 90))[:3] == (0xFF, 0, 0)
+    assert screen.get_at((160, 90))[:3] == (0xF8, 0, 0)  # true color: the fill color as sent
 
 
 def test_audio_is_left_playing_for_the_tail_over_the_menu(screen, tmp_path):

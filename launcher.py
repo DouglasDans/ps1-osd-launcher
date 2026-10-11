@@ -16,6 +16,9 @@ APPS_INI = os.path.join(BASE_DIR, "apps.ini")
 INTRO_VIDEO = os.path.join(BASE_DIR, "assets", "intro.mp4")
 BIOS_TRACE = os.path.join(BASE_DIR, "assets", "bios_intro.trace")
 BIOS_AUDIO = os.path.join(BASE_DIR, "assets", "bios_intro.wav")
+# Resolução interna da intro da BIOS: None = a da tela (1080p). Se o Pi não
+# der conta (veja "pior atraso" no log), (1280, 960) é 2x a resolução do PS1.
+BIOS_INTRO_RESOLUTION = None
 SPLASH_IMAGE = os.path.join(BASE_DIR, "assets", "last_frame.png")
 
 WIDTH, HEIGHT = 1920, 1080
@@ -62,7 +65,7 @@ def main() -> None:
     pygame.display.set_caption("PS1 Launcher")
     pygame.mouse.set_visible(False)
 
-    if bios_intro.play(screen, BIOS_TRACE, BIOS_AUDIO):
+    if bios_intro.play(screen, BIOS_TRACE, BIOS_AUDIO, BIOS_INTRO_RESOLUTION):
         # the BIOS cuts from the Sony screen to its (purple) menu background
         show_splash(screen, SPLASH_IMAGE)
     else:
