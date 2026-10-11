@@ -92,3 +92,24 @@ def test_save_wav_writes_the_rendered_jingle(tmp_path):
         assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (2, 2, SAMPLE_RATE)
         pcm = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).reshape(-1, 2)
     assert np.array_equal(pcm, audio(_tone_trace(2 * FIELD), tail_seconds=0.2))
+
+
+def test_skipped_fields_are_not_drawn_in_hires_but_the_shown_ones_are_current():
+    from src.psx.hires import HiResGPU
+
+    colors = [0x0000F8, 0x00F800, 0xF80000, 0xF80000, 0xF80000, 0xF80000]
+    t = Trace([Field(FIELD * (i + 1), _flat_screen(c)) for i, c in enumerate(colors)], [])
+    gpu = HiResGPU(scale=(1, 1))
+    drawn = []
+    real_paint = gpu._paint
+    gpu._paint = lambda *a: (gpu.lazy or drawn.append(a)) or real_paint(*a)
+
+    images = list(video(t, gpu=gpu, skip=lambda i: i in (1, 2, 3)))
+
+    assert len(images) == 6
+    assert images[0][0, 0].tolist() == [0xF8, 0, 0]
+    # fields 1-3 were never shown: their hires drawing was skipped...
+    assert len(drawn) == 3  # fields 0, 4 and 5
+    # ...and the static-scene shortcut doesn't reuse a stale image afterwards
+    assert images[4][0, 0].tolist() == [0, 0, 0xF8]
+    assert images[5][0, 0].tolist() == [0, 0, 0xF8]

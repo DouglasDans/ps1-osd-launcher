@@ -79,6 +79,7 @@ class HiResGPU(GPU):
         self._copying = False
         self._tex_cache: dict = {}
         self._warm_only = False  # see prepare()
+        self.lazy = False  # field won't be shown: keep VRAM, skip hires drawing (see replay.video)
         self.replacements = replacements or {}
         self._key_cache: dict = {}
         self._sprite_cache: dict = {}
@@ -98,7 +99,7 @@ class HiResGPU(GPU):
                 min(max(math.ceil(y1 * self.sy - 0.5), 0), h))
 
     def _paint(self, X0: int, X1: int, Y0: int, Y1: int, color) -> None:
-        if self._warm_only:
+        if self._warm_only or self.lazy:
             return
         # assigning a ready-made row broadcasts much faster than a 3-tuple
         row = np.empty((X1 - X0, 3), dtype=np.uint8)
@@ -171,6 +172,8 @@ class HiResGPU(GPU):
         if self._warm_only:
             if textured and self._replacement(uv, clut) is None and self.texture_filter != "nearest":
                 self._filtered_texture(uv, clut)
+            return
+        if self.lazy:
             return
 
         xs_, ys_ = [p[0] for p in v], [p[1] for p in v]

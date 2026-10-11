@@ -102,7 +102,8 @@ def _load_sound(path: str) -> pygame.mixer.Sound | None:
 def _run(screen: pygame.Surface, trace, gpu: HiResGPU) -> None:
     rate = replay.field_rate(trace)
     total = len(trace.fields)
-    frames = replay.video(trace, gpu=gpu)
+    behind = [0]  # fields before this one won't be shown: draw only the latest
+    frames = replay.video(trace, gpu=gpu, skip=lambda i: i < behind[0])
     size = screen.get_size()
 
     shown, image, drawn = -1, None, None
@@ -113,6 +114,7 @@ def _run(screen: pygame.Surface, trace, gpu: HiResGPU) -> None:
         elapsed = time.perf_counter() - t0
 
         target = min(int(elapsed * rate), total - 1)
+        behind[0] = target
         while shown < target:
             image = next(frames)
             shown += 1

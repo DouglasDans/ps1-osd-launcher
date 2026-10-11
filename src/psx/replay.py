@@ -5,7 +5,7 @@
 
 import sys
 import wave
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import numpy as np
 
@@ -22,18 +22,36 @@ def field_rate(trace: Trace) -> float:
     return (len(trace.fields) - 1) * CPU_HZ / span
 
 
-def video(trace: Trace, gpu: GPU | None = None) -> Iterator[np.ndarray]:
+def video(trace: Trace, gpu: GPU | None = None,
+          skip: Callable[[int], bool] | None = None) -> Iterator[np.ndarray]:
     """Yields the displayed RGB image (h, w, 3) at the end of every field.
 
     When a field repeats the commands of the two previous ones and those left
     VRAM untouched, the scene reached a fixed point (both interlace fields are
     drawn): the field is skipped and the previous image object is yielded again.
+
+    skip(i) tells that field i won't be shown (the player is behind): a GPU
+    with a `lazy` switch (HiResGPU) then only updates its VRAM, and a stale
+    image is yielded. The BIOS redraws its whole scene every field, so the
+    next shown field is complete again.
     """
     gpu = gpu or GPU()
-    history: list[tuple[list, bool]] = []  # (commands, vram changed) of recent fields
+    history: list[tuple[list | None, bool]] = []  # (commands, vram changed) of recent fields
     image = None
+    can_skip = hasattr(gpu, "lazy")
     for i, f in enumerate(trace.fields):
         gpu.field = i & 1
+        if can_skip and skip is not None and skip(i):
+            gpu.lazy = True
+            for port, word in f.gpu:
+                if port:
+                    gpu.gp1(word)
+                else:
+                    gpu.gp0(word)
+            gpu.lazy = False
+            history = history[-2:] + [(None, True)]  # not drawn: no fixed point yet
+            yield image
+            continue
         if len(history) >= 2 and all(cmds == f.gpu and not changed for cmds, changed in history[-2:]):
             history = history[-2:] + [(f.gpu, False)]
             yield image
