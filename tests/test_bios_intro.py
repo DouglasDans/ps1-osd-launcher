@@ -78,3 +78,33 @@ def test_missing_audio_only_silences_the_intro(screen, tmp_path):
     trace = _write_trace(tmp_path / "intro.trace", fields=2)
 
     assert bios_intro.play(screen, trace, os.path.join(tmp_path, "missing.wav")) is True
+
+
+def test_background_is_held_after_the_cut(screen, tmp_path):
+    trace = _write_trace(tmp_path / "intro.trace", fields=3)
+    background = tmp_path / "purple.png"
+    surf = pygame.Surface((8, 8))
+    surf.fill((0x40, 0x30, 0xC0))
+    pygame.image.save(surf, str(background))
+
+    t0 = time.perf_counter()
+    bios_intro.play(screen, trace, str(tmp_path / "none.wav"),
+                    background=str(background), background_seconds=0.3)
+
+    assert time.perf_counter() - t0 >= 3 / 60 + 0.3
+    assert screen.get_at((160, 90))[:3] == (0x40, 0x30, 0xC0)
+
+
+def test_stop_audio_silences_and_releases_the_device(screen, tmp_path):
+    trace = _write_trace(tmp_path / "intro.trace", fields=3)
+    wav = tmp_path / "intro.wav"
+    with wave.open(str(wav), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(44100)
+        w.writeframes(b"\x00\x10" * 2 * 44100)
+    bios_intro.play(screen, trace, str(wav))
+
+    bios_intro.stop_audio()
+
+    assert not pygame.mixer.get_init()

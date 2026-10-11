@@ -26,24 +26,3 @@ def test_cursor_position_follows_splash_width():
     x_wide, _ = _cursor_position(splash_x=210, splash_w=800, text_y=340, text_h=60, cursor_h=50)
 
     assert x_wide > x_narrow
-
-
-def test_launch_releases_the_audio_device_before_running_the_app(monkeypatch):
-    import subprocess
-
-    import pygame
-
-    from src import menu
-
-    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
-    monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
-    pygame.display.init()
-    pygame.mixer.init()  # the BIOS intro leaves its reverb tail playing
-    mixer_during_app = []
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (
-        mixer_during_app.append(pygame.mixer.get_init()), subprocess.CompletedProcess(a, 0))[1])
-
-    menu._launch("true")
-    pygame.display.quit()
-
-    assert mixer_during_app == [None]

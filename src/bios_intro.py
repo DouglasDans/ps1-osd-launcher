@@ -6,9 +6,10 @@ src.psx.hires the way an upscaling emulator would (output resolution,
 progressive, true color, JINC2-filtered textures). The jingle is synthesized ahead of time from the same trace by
 src.psx.spu (assets/bios_intro.wav) and played as a single sound.
 
-The trace ends where the BIOS cuts from the Sony screen to its menu. The
-jingle's reverb tail outlives that cut by a fraction of a second, so the
-mixer is left playing; whoever needs the audio device next releases it.
+The trace ends where the BIOS cuts from the Sony screen to its menu. Its
+purple background (without the menu) can be held for a while after the cut,
+with the end of the jingle still sounding; the caller stops the audio with
+stop_audio() when its own menu shows up.
 """
 
 import logging
@@ -29,9 +30,11 @@ _NATIVE_W, _NATIVE_H = 640, 480
 
 
 def play(screen: pygame.Surface, trace_path: str, audio_path: str,
-         resolution: tuple[int, int] | None = None, texture_filter: str = "jinc2") -> bool:
-    """Plays the intro up to the cut to the BIOS menu. Returns False when the
-    trace isn't available, so the caller can fall back to something else.
+         resolution: tuple[int, int] | None = None, texture_filter: str = "jinc2",
+         background: str | None = None, background_seconds: float = 0.0) -> bool:
+    """Plays the intro up to the cut to the BIOS menu, then shows background
+    for background_seconds. Returns False when the trace isn't available, so
+    the caller can fall back to something else.
 
     resolution is the internal rendering resolution (default: the screen's);
     a lower one is scaled up to the screen."""
@@ -54,8 +57,30 @@ def play(screen: pygame.Surface, trace_path: str, audio_path: str,
     if sound:
         sound.play()
     _run(screen, trace, gpu)
+    if background:
+        _hold(screen, background, background_seconds)
     log.info("Intro da BIOS encerrada")
     return True
+
+
+def stop_audio() -> None:
+    """Silences the jingle and frees the audio device for the apps."""
+    if pygame.mixer.get_init():
+        pygame.mixer.quit()
+
+
+def _hold(screen: pygame.Surface, path: str, seconds: float) -> None:
+    try:
+        img = pygame.image.load(path).convert()
+    except (pygame.error, FileNotFoundError):
+        log.warning("Fundo da BIOS não encontrado: %s", path)
+        return
+    screen.blit(pygame.transform.smoothscale(img, screen.get_size()), (0, 0))
+    pygame.display.flip()
+    end = time.perf_counter() + seconds
+    while time.perf_counter() < end:
+        pygame.event.get()
+        time.sleep(min(0.01, max(0.0, end - time.perf_counter())))
 
 
 def _load_sound(path: str) -> pygame.mixer.Sound | None:

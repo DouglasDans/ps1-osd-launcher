@@ -12,14 +12,14 @@ log = logging.getLogger("ps1.intro")
 def play_intro(screen: pygame.Surface, video_path: str, splash_path: str | None = None) -> None:
     if not os.path.exists(video_path):
         log.warning("Vídeo de intro não encontrado: %s", video_path)
-        show_splash(screen, splash_path)
+        _show_splash(screen, splash_path)
         return
 
     try:
         from ffpyplayer.player import MediaPlayer
     except ImportError:
         log.warning("ffpyplayer indisponível — pulando intro")
-        show_splash(screen, splash_path)
+        _show_splash(screen, splash_path)
         return
 
     log.info("Reproduzindo intro: %s", video_path)
@@ -42,7 +42,7 @@ def play_intro(screen: pygame.Surface, video_path: str, splash_path: str | None 
             pygame.display.flip()
     except Exception:
         log.exception("Erro durante reprodução da intro")
-        show_splash(screen, splash_path)
+        _show_splash(screen, splash_path)
     finally:
         player.close_player()
 
@@ -99,7 +99,7 @@ def wait_system_ready(timeout: float = 30.0) -> None:
     )
 
 
-def show_splash(screen: pygame.Surface, splash_path: str | None) -> None:
+def _show_splash(screen: pygame.Surface, splash_path: str | None) -> None:
     if not splash_path or not os.path.exists(splash_path):
         return
     img = pygame.image.load(splash_path).convert()
