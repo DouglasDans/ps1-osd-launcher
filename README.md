@@ -48,9 +48,9 @@ Boot
 
 ### Dependencies
 ```
-python3-pygame   (apt)
 python3-numpy    (apt)
 python3-venv     (apt)
+pygame-ce        (pip, inside the project venv — GPU renderer for the intro)
 ```
 
 ## Project Structure
@@ -99,8 +99,9 @@ steps:
    where it cuts to its menu (plus the SPU tail: the shell keys the jingle
    off and lets the reverb fade).
 2. **Replay** — `src/psx/gpu.py` keeps the PS1 GPU's VRAM (uploads, CLUT
-   textures, 15-bit drawing) and `src/psx/hires.py` draws the same commands
-   the way DuckStation's enhanced renderer does: at the screen resolution,
+   textures, 15-bit drawing) and `src/psx/gpurender.py` draws the same
+   commands on the graphics card (SDL's renderer; `src/psx/hires.py` is the
+   CPU fallback), the way DuckStation's enhanced renderer does: at the screen resolution,
    progressive instead of 480i, true color without dithering, and textures
    filtered with JINC2 (pre-filtered before the intro starts) or replaced by
    HD versions (see below).
@@ -176,8 +177,8 @@ bash install.sh
 ```
 
 The installer:
-- Installs `python3-pygame`, `python3-numpy` and `python3-venv` via apt
-- Creates a venv with system site packages (reuses pygame and numpy from apt)
+- Installs `python3-numpy` and `python3-venv` via apt
+- Creates a venv with system site packages (reuses numpy from apt) and installs `pygame-ce` into it
 - Copies the systemd service to `/etc/systemd/system/`
 - Grants passwordless `shutdown`/`reboot`/launcher-restart permission
 - Silences the boot for a console-like startup:
@@ -208,10 +209,11 @@ sudo systemctl restart ps1-osd-launcher
 
 ```bash
 # Install dependencies
-sudo apt install python3-pygame python3-numpy
+python3 -m venv --system-site-packages .venv
+.venv/bin/pip install -r requirements.txt
 
 # Run
-python3 launcher.py
+.venv/bin/python launcher.py
 ```
 
 On WSL with WSLg, a normal pygame window opens. On the Pi, it uses KMSDRM directly. Controller detection is automatic — keyboard works as fallback (arrow keys + Enter + Escape).

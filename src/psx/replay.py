@@ -66,7 +66,7 @@ def video(trace: Trace, gpu: GPU | None = None,
         changed = not np.array_equal(before, gpu.vram)
         history = history[-2:] + [(f.gpu, changed)]
         if changed or image is None or any(port for port, _ in f.gpu):
-            image = gpu.display_rgb()
+            image = gpu.frame()
         yield image
 
 

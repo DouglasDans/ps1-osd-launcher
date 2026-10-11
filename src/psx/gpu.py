@@ -438,6 +438,10 @@ class GPU:
             h *= 2
         return max(w, 0), max(h, 0)
 
+    def frame(self):
+        """What replay.video yields for a changed field: the displayed image."""
+        return self.display_rgb()
+
     def display_rgb(self) -> np.ndarray:
         w, h = self.display_size()
         if self.display_off or w == 0 or h == 0:

@@ -19,8 +19,9 @@ BIOS_TEXTURES = os.path.join(BASE_DIR, "assets", "bios_textures")
 # Depois do corte, a BIOS mostra o fundo roxo sem o menu (last_frame.png)
 # com o fim do jingle tocando; segura por esse tempo antes do nosso menu.
 BIOS_MENU_DELAY = 1.0
-# Resolução interna da intro da BIOS: None = a da tela (1080p). Se o Pi não
-# der conta (veja "pior atraso" no log), (1280, 960) é 2x a resolução do PS1.
+# A intro é desenhada pela GPU (renderer do SDL) na resolução da tela. Se o
+# renderer não abrir, ela cai pro desenho na CPU, com esta resolução interna:
+# None = a da tela; (1280, 960) é 2x a resolução da tela da Sony.
 BIOS_INTRO_RESOLUTION = None
 SPLASH_IMAGE = os.path.join(BASE_DIR, "assets", "last_frame.png")
 
@@ -70,6 +71,7 @@ def main() -> None:
                            background=SPLASH_IMAGE, background_seconds=BIOS_MENU_DELAY,
                            textures_dir=BIOS_TEXTURES):
         show_splash(screen, SPLASH_IMAGE)  # sem a partitura: direto no fundo da BIOS
+    screen = pygame.display.get_surface()  # a intro reabre a tela (renderer de GPU)
     wait_system_ready()
     bios_intro.stop_audio()
 

@@ -52,7 +52,7 @@ def test_intro_runs_until_the_last_recorded_field_then_returns(screen, tmp_path)
     trace = _write_trace(tmp_path / "intro.trace", fields=12)
 
     t0 = time.perf_counter()
-    assert bios_intro.play(screen, trace, str(tmp_path / "none.wav")) is True
+    assert bios_intro.play(screen, trace, str(tmp_path / "none.wav"), use_gpu=False) is True
     elapsed = time.perf_counter() - t0
 
     assert 12 / 60 - 0.02 <= elapsed < 12 / 60 + 0.5
@@ -108,3 +108,39 @@ def test_stop_audio_silences_and_releases_the_device(screen, tmp_path):
     bios_intro.stop_audio()
 
     assert not pygame.mixer.get_init()
+
+
+def _purple(tmp_path):
+    background = tmp_path / "purple.png"
+    surf = pygame.Surface((8, 8))
+    surf.fill((0x40, 0x30, 0xC0))
+    pygame.image.save(surf, str(background))
+    return str(background)
+
+
+def test_gpu_intro_runs_on_time_and_leaves_a_plain_display(screen, tmp_path):
+    trace = _write_trace(tmp_path / "intro.trace", fields=12)
+
+    t0 = time.perf_counter()
+    assert bios_intro.play(screen, trace, str(tmp_path / "none.wav"), background=_purple(tmp_path),
+                           background_seconds=0.2) is True
+    elapsed = time.perf_counter() - t0
+
+    assert 12 / 60 + 0.2 - 0.02 <= elapsed < 12 / 60 + 0.2 + 0.8
+    display = pygame.display.get_surface()
+    assert display.get_size() == (320, 180)
+    assert display.get_at((160, 90))[:3] == (0x40, 0x30, 0xC0)  # background left up for the menu
+
+
+def test_gpu_draws_the_intro_frames(screen, tmp_path, monkeypatch):
+    from src.psx.gpurender import RendererGPU
+
+    trace = _write_trace(tmp_path / "intro.trace", fields=3)
+    seen = []
+    real_show = RendererGPU.show
+    monkeypatch.setattr(RendererGPU, "show", lambda self, f, s=None: (
+        seen.append(self.read_display()[90, 160].tolist()), real_show(self, f, s))[1])
+
+    bios_intro.play(screen, trace, str(tmp_path / "none.wav"))
+
+    assert seen and seen[-1] == [0xF8, 0, 0]
