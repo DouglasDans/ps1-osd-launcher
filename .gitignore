@@ -10,3 +10,9 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Intro da BIOS: derivados do BIOS da Sony, gerados localmente (tools/make_intro_trace.sh)
+assets/bios_intro.trace
+tools/psxtrace/psxtrace
+scph*.bin
+*.AppImage
