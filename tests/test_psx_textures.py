@@ -82,3 +82,38 @@ def test_load_reads_replacements_keyed_by_file_name(tmp_path):
 
 def test_load_of_a_missing_directory_is_empty(tmp_path):
     assert textures.load(str(tmp_path / "none")) == {}
+
+
+def _ink_on_matte():
+    """Navy ink antialiased against white, like the BIOS "TM" texture."""
+    ink, matte = np.array([0, 40, 80]), np.array([240, 240, 240])
+    t = np.array([0.0, 0.25, 0.5, 1.0])  # ink coverage per column
+    rgb = np.rint(matte + (ink - matte) * t[:, None]).astype(np.uint8)
+    img = np.zeros((2, 5, 4), dtype=np.uint8)
+    img[:, :4, :3] = rgb
+    img[:, :4, 3] = 255
+    return img  # last column: transparent texel
+
+
+def test_unmatte_turns_the_antialiasing_into_transparency():
+    out = textures.unmatte(_ink_on_matte())
+
+    assert (out[..., :3][out[..., 3] > 0] == [0, 40, 80]).all()  # pure ink color
+    assert out[0, :, 3].tolist() == [0, 64, 128, 255, 0]  # coverage as alpha
+
+
+def test_unmatte_leaves_multicolor_textures_alone():
+    img = _ink_on_matte()
+    img[0, 1, :3] = [255, 0, 0]  # not on the ink-matte line
+
+    assert np.array_equal(textures.unmatte(img), img)
+
+
+def test_split_feeds_the_upscaler_ink_and_coverage(tmp_path):
+    path = os.path.join(tmp_path, "t.png")
+    textures._save(_ink_on_matte(), path)
+
+    rgb_path, alpha_path = textures.split(path, str(tmp_path / "split"))
+
+    assert (_read_rgba(rgb_path)[..., :3] == [0, 40, 80]).all()
+    assert _read_rgba(alpha_path)[0, :, 0].tolist() == [0, 64, 128, 255, 0]

@@ -84,11 +84,43 @@ def dump(trace, out_dir: str) -> list[str]:
     return [_save(img, os.path.join(out_dir, key + ".png")) for key, img in collect(trace).items()]
 
 
+# max distance (8-bit units) of a color from the ink-matte line to still
+# count as a mix of the two
+_UNMATTE_TOLERANCE = 16
+
+
+def unmatte(img: np.ndarray) -> np.ndarray:
+    """A single-ink texture antialiased against a matte color (the BIOS logo
+    lettering; the "TM" against near-white, which shows as a light fringe on
+    the gray background) becomes the pure ink color with its coverage as
+    alpha, so edges blend with whatever is behind them. Textures with other
+    colors are returned unchanged."""
+    opaque = img[..., 3] > 0
+    if not opaque.any():
+        return img
+    colors = np.unique(img[opaque][:, :3], axis=0).astype(np.float64)
+    lum = colors.sum(axis=1)
+    ink, matte = colors[lum.argmin()], colors[lum.argmax()]
+    d = matte - ink
+    if d @ d < 1:
+        return img
+    t = ((colors - ink) @ d) / (d @ d)
+    if np.linalg.norm(colors - (ink + np.outer(t, d)), axis=1).max() > _UNMATTE_TOLERANCE:
+        return img
+    px = img[..., :3].astype(np.float64)
+    coverage = 1.0 - np.clip(((px - ink) @ d) / (d @ d), 0.0, 1.0)
+    out = np.empty_like(img)
+    out[..., :3] = ink.astype(np.uint8)
+    out[..., 3] = np.rint(img[..., 3] * coverage).astype(np.uint8)
+    return out
+
+
 def split(path: str, out_dir: str) -> tuple[str, str]:
     """RGBA texture -> an RGB image and an alpha (grayscale) image for an
-    RGB-only upscaler. Transparent texels take the lightest opaque color
-    (what the edges were antialiased against), so no dark halo appears."""
-    img = _read(path)
+    RGB-only upscaler. Single-ink textures are unmatted first. Transparent
+    texels take the lightest opaque color (what the edges were antialiased
+    against), so no dark halo appears."""
+    img = unmatte(_read(path))
     opaque = img[..., 3] > 0
     rgb = img[..., :3].copy()
     if opaque.any():
