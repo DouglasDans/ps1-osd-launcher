@@ -4,7 +4,7 @@ import sys
 
 import pygame
 
-from src import controller, logger
+from src import bios_intro, controller, logger
 from src.config import load_apps
 from src.intro import hide_tty, play_intro, restore_tty, wait_system_ready
 from src.menu import run as run_menu
@@ -14,6 +14,10 @@ log = logging.getLogger("ps1.launcher")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 APPS_INI = os.path.join(BASE_DIR, "apps.ini")
 INTRO_VIDEO = os.path.join(BASE_DIR, "assets", "intro.mp4")
+BIOS_TRACE = os.path.join(BASE_DIR, "assets", "bios_intro.trace")
+# Sem disco, o shell da BIOS só sai do logo da Sony depois que o drive desiste
+# de ler; a referência gravada no DuckStation segura o logo por ~7,4s.
+BIOS_INTRO_HOLD = 7.4
 SPLASH_IMAGE = os.path.join(BASE_DIR, "assets", "last_frame.png")
 
 WIDTH, HEIGHT = 1920, 1080
@@ -50,7 +54,8 @@ def main() -> None:
         hide_tty()
 
     # Inicializa só o necessário — sem mixer para não ocupar o ALSA
-    # (o menu não tem som; o ffpyplayer toca o áudio da intro pelo SDL dele)
+    # (o menu não tem som; a intro da BIOS abre o mixer e o libera ao terminar,
+    # e o fallback em vídeo toca o áudio pelo SDL do ffpyplayer)
     pygame.display.init()
     pygame.font.init()
     flags = pygame.FULLSCREEN if IS_PI else 0
@@ -58,7 +63,8 @@ def main() -> None:
     pygame.display.set_caption("PS1 Launcher")
     pygame.mouse.set_visible(False)
 
-    play_intro(screen, INTRO_VIDEO, SPLASH_IMAGE)
+    if not bios_intro.play(screen, BIOS_TRACE, BIOS_INTRO_HOLD):
+        play_intro(screen, INTRO_VIDEO, SPLASH_IMAGE)
     wait_system_ready()
 
     controller.init()

@@ -6,13 +6,13 @@ A minimalist game launcher with a PlayStation 1 BIOS-style interface, designed t
 
 ## Overview
 
-PS1 OSD Launcher boots directly into a controller-navigable menu styled after the original PS1 BIOS screen. It plays a Sony-style intro video, then presents a configurable list of apps (emulators, scripts, system commands) that launch on selection and return to the menu when closed.
+PS1 OSD Launcher boots directly into a controller-navigable menu styled after the original PS1 BIOS screen. It recreates the Sony boot intro straight from a PS1 BIOS (or plays an intro video), then presents a configurable list of apps (emulators, scripts, system commands) that launch on selection and return to the menu when closed.
 
 Built with Python and pygame, it runs over KMSDRM (direct framebuffer) on the Pi and opens as a regular window on Linux desktops or WSL for development.
 
 ## Features
 
-- Sony PS1 intro video playback before the menu (`assets/intro.mp4`)
+- Sony PS1 boot intro rebuilt from the BIOS: GPU commands and SPU writes recorded from the real BIOS code, rasterized and synthesized in pygame (falls back to `assets/intro.mp4`)
 - OSD menu visually faithful to the original PS1 BIOS
 - 100% controller-driven navigation — no keyboard or mouse required
 - Universal controller support via **SDL2 GameController API** + [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) (2200+ mappings)
@@ -27,7 +27,7 @@ Boot
  └── systemd: git pull (auto-update)
       └── venv/bin/python3 launcher.py
             └── pygame: owns the display from boot to shutdown
-                  ├── plays intro.mp4 (ffpyplayer, if present)
+                  ├── replays the BIOS intro (bios_intro.trace) or intro.mp4
                   ├── reads apps.ini
                   ├── controller navigation
                   └── launches selected app
@@ -49,6 +49,7 @@ Boot
 ### Dependencies
 ```
 python3-pygame   (apt)
+python3-numpy    (apt)
 python3-venv     (apt)
 ffpyplayer       (pip, inside the project venv — bundles its own ffmpeg)
 ```
@@ -63,18 +64,50 @@ ps1-osd-launcher/
 ├── install.sh                # Pi installation script
 ├── assets/
 │   ├── ps1-bios.jpg          # Menu background
-│   ├── intro.mp4             # Sony intro video — add manually (see below)
+│   ├── bios_intro.trace      # Sony intro recorded from your BIOS — generate it (see below)
+│   ├── intro.mp4             # Fallback intro video
 │   ├── gamecontrollerdb.txt  # SDL2 controller mappings
 │   └── fonts/
 │       └── PressStart2P.ttf  # Menu font
 ├── src/
 │   ├── config.py             # apps.ini reader
-│   ├── intro.py              # Intro video playback
+│   ├── bios_intro.py         # Plays the BIOS intro (video + streamed audio)
+│   ├── psx/                  # PS1 GPU/SPU software models + trace replay
+│   ├── intro.py              # Intro video playback (fallback)
 │   ├── controller.py         # Normalized controller input (SDL2)
 │   └── menu.py               # OSD menu renderer
+├── tools/
+│   ├── psxtrace/             # Minimal PS1 emulator that records the BIOS intro
+│   └── make_intro_trace.sh   # Builds psxtrace and writes assets/bios_intro.trace
 └── systemd/
     └── ps1-osd-launcher.service
 ```
+
+## Sony Intro from the BIOS
+
+The intro isn't a video inside the BIOS: it's code. The BIOS draws the logo
+with GPU polygons and textured sprites and plays the jingle by driving the SPU
+(ADPCM samples, ADSR envelopes, reverb). So the launcher recreates it in two
+steps:
+
+1. **Record** — `tools/psxtrace` is a small PS1 machine (R3000A CPU, DMA,
+   timers, interrupts, an empty CD drive) that boots the BIOS with no disc and
+   records every GPU command and SPU register/RAM write, with timestamps,
+   until the shell first talks to the CD drive (the end of the Sony screen).
+2. **Replay** — `src/psx/gpu.py` rasterizes the commands like the PS1 GPU
+   (top-left fill rule, gouraud, CLUT textures, 4x4 dithering, 480i fields)
+   and `src/psx/spu.py` synthesizes the audio like the SPU (ADPCM, gaussian
+   interpolation, ADSR, reverb with FIR resampling). Audio is rendered in a
+   separate process and streamed to the mixer in sync with the video.
+
+The trace is derived from Sony's BIOS, so it isn't versioned. Generate it from
+your own BIOS dump (a C compiler and `make` are needed):
+
+```bash
+tools/make_intro_trace.sh scph5501.bin   # writes assets/bios_intro.trace
+```
+
+Without the trace, the launcher falls back to `assets/intro.mp4`.
 
 ## Configuring Apps (`apps.ini`)
 
@@ -112,14 +145,16 @@ INSTALL_DIR="/home/<your-username>/ps1-osd-launcher"
 
 Also update the sudoers line with your Pi username.
 
-### 3. Add the intro video (optional)
+### 3. Add the intro (optional)
+
+Generate `assets/bios_intro.trace` (see [Sony Intro from the BIOS](#sony-intro-from-the-bios)) on the Pi or on your machine and copy it:
 
 ```bash
 # From your local machine:
-scp intro.mp4 <user>@<pi-ip>:~/ps1-osd-launcher/assets/
+scp assets/bios_intro.trace <user>@<pi-ip>:~/ps1-osd-launcher/assets/
 ```
 
-If `intro.mp4` is absent, the launcher skips it silently.
+`intro.mp4` is used when the trace is absent; with neither, the launcher skips the intro.
 
 ### 4. Run the installer
 
@@ -128,7 +163,7 @@ bash install.sh
 ```
 
 The installer:
-- Installs `python3-pygame` and `python3-venv` via apt
+- Installs `python3-pygame`, `python3-numpy` and `python3-venv` via apt
 - Creates a venv (with system site packages) and installs `ffpyplayer` into it
 - Copies the systemd service to `/etc/systemd/system/`
 - Grants passwordless `shutdown`/`reboot`/launcher-restart permission
