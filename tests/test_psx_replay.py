@@ -1,6 +1,8 @@
+import wave
+
 import numpy as np
 
-from src.psx.replay import audio, audio_chunks, field_rate, video
+from src.psx.replay import audio, audio_chunks, field_rate, save_wav, video
 from src.psx.spu import CYCLES_PER_SAMPLE, SAMPLE_RATE
 from src.psx.trace import CPU_HZ, Field, RamWrite, RegWrite, Trace
 
@@ -78,3 +80,15 @@ def test_chunked_audio_matches_single_render():
     pieces = np.concatenate(list(audio_chunks(_tone_trace(2 * FIELD), chunk=1000, tail_seconds=0.2)))
 
     assert np.array_equal(whole, pieces)
+
+
+def test_save_wav_writes_the_rendered_jingle(tmp_path):
+    t = _tone_trace(2 * FIELD)
+    path = tmp_path / "intro.wav"
+
+    save_wav(t, str(path), tail_seconds=0.2)
+
+    with wave.open(str(path)) as w:
+        assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (2, 2, SAMPLE_RATE)
+        pcm = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).reshape(-1, 2)
+    assert np.array_equal(pcm, audio(_tone_trace(2 * FIELD), tail_seconds=0.2))

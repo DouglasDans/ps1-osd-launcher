@@ -1,5 +1,10 @@
-"""Replays a psxtrace recording through the GPU and SPU models."""
+"""Replays a psxtrace recording through the GPU and SPU models.
 
+    python -m src.psx.replay <in.trace> <out.wav>   pre-renders the jingle
+"""
+
+import sys
+import wave
 from collections.abc import Iterator
 
 import numpy as np
@@ -80,3 +85,23 @@ def audio(trace: Trace, tail_seconds: float = 3.0, spu: SPU | None = None) -> np
     """The whole jingle as one int16 stereo array."""
     chunks = list(audio_chunks(trace, tail_seconds=tail_seconds, spu=spu))
     return np.concatenate(chunks) if chunks else np.zeros((0, 2), dtype=np.int16)
+
+
+def save_wav(trace: Trace, path: str, tail_seconds: float = 3.0) -> None:
+    """Writes the jingle as a 16-bit stereo WAV, ready for pygame.mixer."""
+    pcm = audio(trace, tail_seconds=tail_seconds)
+    with wave.open(path, "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLE_RATE)
+        w.writeframes(pcm.astype("<i2").tobytes())
+
+
+if __name__ == "__main__":
+    from src.psx.trace import load
+
+    if len(sys.argv) != 3:
+        sys.exit("usage: python -m src.psx.replay <in.trace> <out.wav>")
+    # the trace ends at the cut; its SPU tail (reverb fading after the shell
+    # keys the jingle off) lasts well under a second
+    save_wav(load(sys.argv[1]), sys.argv[2], tail_seconds=1.0)

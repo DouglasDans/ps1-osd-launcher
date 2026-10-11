@@ -13,12 +13,21 @@
  *   'S' u64 cycle u16 reg u16 value    SPU register write (reg = offset from 1F801C00)
  *   'R' u64 cycle u32 addr u32 len ... SPU RAM upload (len bytes)
  *
- * Recording stops when the BIOS shell first talks to the CD-ROM drive: that
- * is the end of the Sony Computer Entertainment screen.
+ * The drive has its lid closed and no disc: GetID answers "no disc" only
+ * after CD_SPINUP seconds, the time a real drive spends trying to read. The
+ * BIOS holds the Sony screen meanwhile, then clears the screen to enter the
+ * memory card/CD player menu. GPU recording stops at that clear (the last
+ * field of the trace is the last field of the Sony screen); the SPU is
+ * recorded for 2 more seconds, since the shell keys the jingle off and
+ * only its reverb tail keeps sounding over the menu.
  *
  * usage: psxtrace <bios.bin> <out.trace> [max_fields]
  *
+ * Environment:
+ *   CD_SPINUP=<secs>    drive spin-up time before "no disc" (default: almost none)
+ *
  * Debug environment variables (BIOS analysis):
+ *   NOSTOP=1            keep recording after the cut (the shell is not supported by the replay)
  *   CDLOG=1             log CD-ROM commands
  *   BRK=<addr>          log registers when the CPU reaches addr (BRKMEM=<addr> also dumps a RAM word)
  *   WATCH=<addr>        log writes to a RAM word
@@ -83,8 +92,13 @@ static void vram_put(uint16_t px) {
     vram[y][x] = px; xfer_i++;
 }
 
+static int cd_used; /* the shell talks to the drive only after the Sony screen */
+static int shell_started; /* first screen clear after that: the cut to the BIOS menu */
+static int video_off; /* after the cut only the SPU is recorded (the shell silences the jingle) */
+
 static void gp0(uint32_t v) {
-    w8('G'); w32(v); gp0_count++;
+    if (!video_off) { w8('G'); w32(v); }
+    gp0_count++;
     if (gp0_mode == 2) {
         vram_put(v & 0xFFFF);
         if (xfer_i < xfer_w * xfer_h) vram_put(v >> 16);
@@ -109,7 +123,7 @@ static void gp0(uint32_t v) {
     if (op >= 0xA0 && op < 0xC0) { gp0_mode = 1; gp0_hdr[0] = v; gp0_hdr_n = 1; return; }
     if (op >= 0xC0 && op < 0xE0) { gp0_mode = 3; gp0_hdr[0] = v; gp0_hdr_n = 1; return; }
     int n = 0;
-    if (op == 0x02) n = 2;
+    if (op == 0x02) { n = 2; if (cd_used) shell_started = 1; }
     else if (op >= 0x20 && op < 0x40) {
         int g = op >> 4 & 1, q = op >> 3 & 1, t = op >> 2 & 1, nv = q ? 4 : 3;
         n = nv * (1 + t + g) + (1 - g) - 1;
@@ -134,7 +148,7 @@ static uint32_t gpuread(void) {
 }
 
 static void gp1(uint32_t v) {
-    w8('g'); w32(v);
+    if (!video_off) { w8('g'); w32(v); }
     switch (v >> 24) {
     case 0x00: gpu_dma_dir = 0; gpu_display_off = 1; gpu_display_mode = 0; gp0_mode = 0; gp0_words_left = 0; break;
     case 0x01: gp0_mode = 0; gp0_words_left = 0; break;
@@ -333,18 +347,20 @@ static int cd_pending_len;
 static uint64_t cd_first_at;
 static uint8_t cd_first_int, cd_first[8];
 static int cd_first_len;
-static const uint8_t CD_STAT = 0x10; /* shell open: no disc */
+static const uint8_t CD_STAT = 0x02; /* lid closed, motor on, no disc */
 
 static void cd_queue_first(uint8_t intn, const uint8_t *r, int n) {
     cd_first_at = cycles + 25000; cd_first_int = intn;
     memcpy(cd_first, r, n); cd_first_len = n;
 }
-static void cd_queue_second(uint8_t intn, const uint8_t *r, int n) {
-    cd_pending_at = cycles + 25000 + 50000; cd_pending_int = intn;
+static void cd_queue_second_after(uint64_t delay, uint8_t intn, const uint8_t *r, int n) {
+    cd_pending_at = cycles + 25000 + delay; cd_pending_int = intn;
     memcpy(cd_pending, r, n); cd_pending_len = n;
 }
+static void cd_queue_second(uint8_t intn, const uint8_t *r, int n) { cd_queue_second_after(50000, intn, r, n); }
+/* how long the drive spends spinning up before GetID reports "no disc" */
+static uint64_t cd_nodisc_delay = 50000;
 
-static int cd_used; /* the shell talks to the drive only after the Sony screen */
 static void cd_command(uint8_t c) {
     cd_used = 1;
     if (getenv("CDLOG")) fprintf(stderr, "[cd cmd %02x np=%d p0=%02x frame~%llu]\n", c, cd_nparams, cd_params[0], (unsigned long long)(cycles / 565000));
@@ -360,7 +376,7 @@ static void cd_command(uint8_t c) {
     case 0x1A: { /* GetID: no disc */
         cd_queue_first(3, st, 1);
         uint8_t r[8] = {0x08, 0x40, 0, 0, 0, 0, 0, 0};
-        cd_queue_second(5, r, 8);
+        cd_queue_second_after(cd_nodisc_delay, 5, r, 8);
         break;
     }
     case 0x0A: /* Init */
@@ -891,6 +907,7 @@ int main(int argc, char **argv) {
     long frames = argc > 3 ? atol(argv[3]) : 3000;
     fwrite("PSXTRC01", 1, 8, out);
 
+    if (getenv("CD_SPINUP")) cd_nodisc_delay = (uint64_t)(atof(getenv("CD_SPINUP")) * CPU_HZ);
     if (getenv("IOLOG")) sscanf(getenv("IOLOG"), "%ld,%ld", &iolog_from, &iolog_to);
     if (getenv("PROF")) { prof_on = 1; sscanf(getenv("PROF"), "%ld,%ld", &prof_from, &prof_to); }
     if (getenv("BRK")) brk_addr = strtoul(getenv("BRK"), 0, 16);
@@ -901,7 +918,13 @@ int main(int argc, char **argv) {
     uint64_t next_line = CYCLES_PER_LINE;
     int line = 0;
     long frame = 0;
-    while (frame < frames && !cd_used) {
+    int nostop = getenv("NOSTOP") != 0;
+    uint64_t stop_at = 0;
+    while (frame < frames && (nostop || !stop_at || cycles < stop_at)) {
+        if (shell_started && !stop_at && !nostop) {
+            video_off = 1;
+            stop_at = cycles + 2 * CPU_HZ;
+        }
         stall = 0;
         uint32_t prof_pc = pc;
         step();
@@ -925,7 +948,7 @@ int main(int argc, char **argv) {
             int lines = gpu_interlaced() ? (gpu_field ? 262 : 263) : 263;
             if (line == 240) {
                 irq(0);
-                w8('V'); w64(cycles);
+                if (!video_off) { w8('V'); w64(cycles); }
                 frame++;
             }
             if (line >= lines) { line = 0; cur_line = 0; gpu_field ^= 1; }

@@ -65,20 +65,21 @@ ps1-osd-launcher/
 ├── assets/
 │   ├── ps1-bios.jpg          # Menu background
 │   ├── bios_intro.trace      # Sony intro recorded from your BIOS — generate it (see below)
+│   ├── bios_intro.wav        # Its jingle, pre-rendered from the trace
 │   ├── intro.mp4             # Fallback intro video
 │   ├── gamecontrollerdb.txt  # SDL2 controller mappings
 │   └── fonts/
 │       └── PressStart2P.ttf  # Menu font
 ├── src/
 │   ├── config.py             # apps.ini reader
-│   ├── bios_intro.py         # Plays the BIOS intro (video + streamed audio)
+│   ├── bios_intro.py         # Plays the BIOS intro (replayed video + pre-rendered audio)
 │   ├── psx/                  # PS1 GPU/SPU software models + trace replay
 │   ├── intro.py              # Intro video playback (fallback)
 │   ├── controller.py         # Normalized controller input (SDL2)
 │   └── menu.py               # OSD menu renderer
 ├── tools/
 │   ├── psxtrace/             # Minimal PS1 emulator that records the BIOS intro
-│   └── make_intro_trace.sh   # Builds psxtrace and writes assets/bios_intro.trace
+│   └── make_bios_intro.sh    # Builds psxtrace, writes assets/bios_intro.{trace,wav}
 └── systemd/
     └── ps1-osd-launcher.service
 ```
@@ -91,23 +92,29 @@ with GPU polygons and textured sprites and plays the jingle by driving the SPU
 steps:
 
 1. **Record** — `tools/psxtrace` is a small PS1 machine (R3000A CPU, DMA,
-   timers, interrupts, an empty CD drive) that boots the BIOS with no disc and
-   records every GPU command and SPU register/RAM write, with timestamps,
-   until the shell first talks to the CD drive (the end of the Sony screen).
+   timers, interrupts, a CD drive with no disc) that boots the BIOS and
+   records every GPU command and SPU register/RAM write, with timestamps.
+   The drive keeps "spinning up" for a while before reporting no disc, like a
+   real one, so the BIOS itself holds the Sony screen; the recording ends
+   where it cuts to its menu (plus the SPU tail: the shell keys the jingle
+   off and lets the reverb fade).
 2. **Replay** — `src/psx/gpu.py` rasterizes the commands like the PS1 GPU
    (top-left fill rule, gouraud, CLUT textures, 4x4 dithering, 480i fields)
    and `src/psx/spu.py` synthesizes the audio like the SPU (ADPCM, gaussian
-   interpolation, ADSR, reverb with FIR resampling). Audio is rendered in a
-   separate process and streamed to the mixer in sync with the video.
+   interpolation, ADSR, reverb with FIR resampling). The audio is
+   pre-rendered to a WAV when the trace is recorded; at the cut the launcher
+   switches to the purple BIOS background and then the menu.
 
-The trace is derived from Sony's BIOS, so it isn't versioned. Generate it from
-your own BIOS dump (a C compiler and `make` are needed):
+Both files are derived from Sony's BIOS, so they aren't versioned. Generate
+them from your own BIOS dump (a C compiler and `make` are needed):
 
 ```bash
-tools/make_intro_trace.sh scph5501.bin   # writes assets/bios_intro.trace
+tools/make_bios_intro.sh scph5501.bin   # writes assets/bios_intro.{trace,wav}
+CD_SPINUP=2 tools/make_bios_intro.sh scph5501.bin   # shorter wait on the logo
 ```
 
-Without the trace, the launcher falls back to `assets/intro.mp4`.
+Without the trace, the launcher falls back to `assets/intro.mp4`; without the
+WAV, the intro plays silently.
 
 ## Configuring Apps (`apps.ini`)
 
@@ -147,11 +154,11 @@ Also update the sudoers line with your Pi username.
 
 ### 3. Add the intro (optional)
 
-Generate `assets/bios_intro.trace` (see [Sony Intro from the BIOS](#sony-intro-from-the-bios)) on the Pi or on your machine and copy it:
+Generate `assets/bios_intro.trace` and `assets/bios_intro.wav` (see [Sony Intro from the BIOS](#sony-intro-from-the-bios)) on the Pi or on your machine and copy them:
 
 ```bash
 # From your local machine:
-scp assets/bios_intro.trace <user>@<pi-ip>:~/ps1-osd-launcher/assets/
+scp assets/bios_intro.trace assets/bios_intro.wav <user>@<pi-ip>:~/ps1-osd-launcher/assets/
 ```
 
 `intro.mp4` is used when the trace is absent; with neither, the launcher skips the intro.

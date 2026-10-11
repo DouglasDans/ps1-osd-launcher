@@ -1,79 +1,80 @@
-from src.bios_intro import AudioFeeder
+import os
+import struct
+import time
+import wave
 
-CHUNK = 100
+import pygame
+import pytest
 
+from src import bios_intro
+from src.psx.trace import CPU_HZ, MAGIC
 
-class FakeChannel:
-    def __init__(self):
-        self.playing = None
-        self.queued = None
-        self.log = []
-
-    def get_busy(self):
-        return self.playing is not None
-
-    def get_queue(self):
-        return self.queued
-
-    def play(self, sound):
-        self.playing = sound
-        self.log.append(("play", sound))
-
-    def queue(self, sound):
-        self.queued = sound
-        self.log.append(("queue", sound))
+FIELD = CPU_HZ // 60
 
 
-def _chunk(tag: int, samples: int = CHUNK) -> bytes:
-    return bytes([tag]) * (samples * 4)
+@pytest.fixture
+def screen(monkeypatch):
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
+    pygame.display.init()
+    yield pygame.display.set_mode((320, 180))
+    pygame.mixer.quit()
+    pygame.display.quit()
 
 
-def _feeder(chunks):
-    channel = FakeChannel()
-    source = list(chunks)
-    feeder = AudioFeeder(channel, lambda: source.pop(0) if source else None, sound=lambda b: b)
-    return feeder, channel
+def _write_trace(path, fields: int) -> str:
+    red_screen = [
+        ("g", 0x03000000), ("g", 0x08000027), ("g", 0x06C60260), ("g", 0x0703FC10),
+        ("G", 0xE3000000), ("G", 0xE4000000 | (511 << 10) | 1023), ("G", 0xE5000000),
+        ("G", 0x020000F8), ("G", 0), ("G", (480 << 16) | 640),
+    ]
+    out = bytearray(MAGIC)
+    for i in range(fields):
+        for tag, word in red_screen:
+            out += tag.encode() + struct.pack("<I", word)
+        out += b"V" + struct.pack("<Q", FIELD * (i + 1))
+    path.write_bytes(bytes(out))
+    return str(path)
 
 
-def test_first_chunk_plays_immediately_at_the_start():
-    feeder, channel = _feeder([_chunk(1), _chunk(2)])
-
-    feeder.pump(now_sample=0)
-
-    assert channel.log[0] == ("play", _chunk(1))
-    assert channel.log[1] == ("queue", _chunk(2))
+def test_missing_trace_reports_failure_so_the_caller_can_fall_back(screen, tmp_path):
+    assert bios_intro.play(screen, str(tmp_path / "none.trace"), str(tmp_path / "none.wav")) is False
 
 
-def test_late_chunk_is_trimmed_to_stay_in_sync():
-    feeder, channel = _feeder([_chunk(1)])
+def test_invalid_trace_reports_failure(screen, tmp_path):
+    bad = tmp_path / "bad.trace"
+    bad.write_bytes(b"not a trace")
 
-    feeder.pump(now_sample=30)
-
-    assert channel.log == [("play", _chunk(1, CHUNK - 30))]
-
-
-def test_chunks_already_in_the_past_are_dropped():
-    feeder, channel = _feeder([_chunk(1), _chunk(2), _chunk(3)])
-
-    feeder.pump(now_sample=2 * CHUNK + 10)
-
-    assert channel.log == [("play", _chunk(3, CHUNK - 10))]
+    assert bios_intro.play(screen, str(bad), str(tmp_path / "none.wav")) is False
 
 
-def test_while_playing_chunks_are_queued_back_to_back():
-    feeder, channel = _feeder([_chunk(1), _chunk(2), _chunk(3)])
-    feeder.pump(now_sample=0)
+def test_intro_runs_until_the_last_recorded_field_then_returns(screen, tmp_path):
+    trace = _write_trace(tmp_path / "intro.trace", fields=12)
 
-    channel.queued = None  # mixer moved chunk 2 to "playing"
-    feeder.pump(now_sample=150)  # no realignment while busy
+    t0 = time.perf_counter()
+    assert bios_intro.play(screen, trace, str(tmp_path / "none.wav")) is True
+    elapsed = time.perf_counter() - t0
 
-    assert channel.log[-1] == ("queue", _chunk(3))
+    assert 12 / 60 - 0.02 <= elapsed < 12 / 60 + 0.5
+    assert screen.get_at((160, 90))[:3] == (0xFF, 0, 0)
 
 
-def test_end_of_stream_is_reported():
-    feeder, _ = _feeder([_chunk(1)])
-    feeder.pump(now_sample=0)
+def test_audio_is_left_playing_for_the_tail_over_the_menu(screen, tmp_path):
+    trace = _write_trace(tmp_path / "intro.trace", fields=3)
+    wav = tmp_path / "intro.wav"
+    with wave.open(str(wav), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(44100)
+        w.writeframes(b"\x00\x10" * 2 * 44100)  # 1s, longer than the 3 fields
 
-    feeder.pump(now_sample=CHUNK)
+    assert bios_intro.play(screen, trace, str(wav)) is True
 
-    assert feeder.finished
+    assert pygame.mixer.get_init()
+    assert pygame.mixer.get_busy()
+
+
+def test_missing_audio_only_silences_the_intro(screen, tmp_path):
+    trace = _write_trace(tmp_path / "intro.trace", fields=2)
+
+    assert bios_intro.play(screen, trace, os.path.join(tmp_path, "missing.wav")) is True

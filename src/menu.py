@@ -149,6 +149,8 @@ def _launch(cmd: str) -> pygame.Surface:
 
     log.info("Lançando: %s", cmd)
     pygame.display.quit()
+    if pygame.mixer.get_init():  # left open by the BIOS intro; apps need ALSA
+        pygame.mixer.quit()
 
     clean_env = {k: v for k, v in os.environ.items() if not k.startswith("SDL_")}
     t0 = time.monotonic()
