@@ -6,7 +6,7 @@ set -e
 INSTALL_DIR="/home/douglasdans/ps1-osd-laucher"
 
 echo ">>> Instalando dependências..."
-sudo apt install -y python3-pygame python3-venv
+sudo apt install -y python3-pygame python3-numpy python3-venv
 
 echo ">>> Criando venv (reaproveita pygame do apt)..."
 python3 -m venv --system-site-packages "$INSTALL_DIR/venv"
