@@ -1,9 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-> **Escopo:** Este documento cobre o **PS1 Pro** como um todo — o console retro construído sobre o Raspberry Pi 5. Inclui o launcher (este repositório), todos os emuladores, scripts de suporte e a infraestrutura systemd/rede. Qualquer mudança importante no sistema deve ser registrada aqui na seção "Registro de mudanças".
-
 ---
 
 ## Modo de Trabalho: Pair Programming com XP
@@ -71,16 +65,16 @@ Console retro caseiro construído por Douglas. A ideia: pegar uma carcaça real 
 
 ### Hardware planejado para a carcaça
 
-| Modificação | Descrição |
-|-------------|-----------|
-| Botão Power | Liga o Raspberry Pi |
-| Botão Reset | Abre o menu do RetroArch |
-| Portas de controle | Funcionando de verdade (adaptador PS→USB) |
-| Slots de Memory Card | USBs no lugar do leitor original |
-| Energia | USB-C no lugar da porta original |
-| Vídeo | HDMI no lugar da porta AV-Multi |
-| Rede | RJ45 no lugar da porta serial |
-| LED | Verde para indicar ligado |
+| Modificação          | Descrição                                 |
+| -------------------- | ----------------------------------------- |
+| Botão Power          | Liga o Raspberry Pi                       |
+| Botão Reset          | Abre o menu do RetroArch                  |
+| Portas de controle   | Funcionando de verdade (adaptador PS→USB) |
+| Slots de Memory Card | USBs no lugar do leitor original          |
+| Energia              | USB-C no lugar da porta original          |
+| Vídeo                | HDMI no lugar da porta AV-Multi           |
+| Rede                 | RJ45 no lugar da porta serial             |
+| LED                  | Verde para indicar ligado                 |
 
 **Status da carcaça:** carcaça de PS1 adquirida; Pi já testado fisicamente dentro dela. Integração elétrica/física pendente.
 
@@ -88,40 +82,42 @@ Console retro caseiro construído por Douglas. A ideia: pegar uma carcaça real 
 
 ## Hardware e Sistema Operacional
 
-| Campo | Valor |
-|-------|-------|
-| Dispositivo | Raspberry Pi 5 Model B Rev 1.1 |
-| CPU | Quad-core Cortex-A76 (aarch64) |
-| RAM | 3.9 GiB |
-| OS | Debian 13 Trixie — Linux 6.12.75+rpt-rpi-v8 |
-| Hostname | raspberrypi |
-| IP WiFi | 192.168.1.186/24 (rede "Douglas_5G") |
-| IP Ethernet | 192.168.0.10/24 (cabo direto para o PS2) |
-| Armazenamento OS | SD card |
-| Armazenamento jogos | USB Flash 116 GB NTFS em `/mnt/usb-flash` (88% cheio) |
-| Display | Sem X11 — KMSDRM framebuffer + Wayland (Cage) |
-| Acesso | **Quase sempre via SSH** — sem teclado/monitor físico na maioria das sessões |
+| Campo               | Valor                                                                        |
+| ------------------- | ---------------------------------------------------------------------------- |
+| Dispositivo         | Raspberry Pi 5 Model B Rev 1.1                                               |
+| CPU                 | Quad-core Cortex-A76 (aarch64)                                               |
+| RAM                 | 3.9 GiB                                                                      |
+| OS                  | Debian 13 Trixie — Linux 6.12.75+rpt-rpi-v8                                  |
+| Hostname            | raspberrypi                                                                  |
+| IP WiFi             | 192.168.1.150/24 (rede "Douglas_5G")                                         |
+| IP Ethernet         | 192.168.0.10/24 (cabo direto para o PS2)                                     |
+| Armazenamento OS    | SD card                                                                      |
+| Armazenamento jogos | USB Flash 116 GB NTFS em `/mnt/usb-flash` (88% cheio)                        |
+| Display             | Sem X11 — KMSDRM framebuffer + Wayland (Cage)                                |
+| Acesso              | **Quase sempre via SSH** — sem teclado/monitor físico na maioria das sessões |
 
 ### Configurações críticas do OS
 
 **`/boot/firmware/config.txt`:**
+
 ```
 kernel=kernel8.img
 ```
+
 Reduz o tamanho de página de memória de 16KB (padrão Pi 5) para 4KB. Necessário para PPSSPP e Flycast funcionarem. A perda de desempenho é mínima.
 
 ---
 
 ## Emuladores
 
-| Emulador | Sistema | Localização | Observação |
-|----------|---------|-------------|------------|
-| DuckStation | PS1 | `~/emulators/duckstation/DuckStation-arm64.AppImage` | Melhor opção PS1; roda via Cage/Wayland |
-| PPSSPP | PSP | `~/emulators/ppsspp/PPSSPPSDL` | Standalone; melhor que o core libretro |
-| RetroArch v1.20.0 | Multi-sistema | `retroarch` (pacote apt) | |
-| Flycast | Dreamcast | Core compilado (RetroArch) | Dreamcast roda bem em 720p |
-| PCSX-ReARMed | PS1 | Core compilado (RetroArch) | Melhor core PS1 no RetroArch para Pi |
-| SwanStation | PS1 | Core compilado (RetroArch) | Desempenho ruim em alguns jogos (CTR, Crash Bash) |
+| Emulador          | Sistema       | Localização                                          | Observação                                        |
+| ----------------- | ------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| DuckStation       | PS1           | `~/emulators/duckstation/DuckStation-arm64.AppImage` | Melhor opção PS1; roda via Cage/Wayland           |
+| PPSSPP            | PSP           | `~/emulators/ppsspp/PPSSPPSDL`                       | Standalone; melhor que o core libretro            |
+| RetroArch v1.20.0 | Multi-sistema | `retroarch` (pacote apt)                             |                                                   |
+| Flycast           | Dreamcast     | Core compilado (RetroArch)                           | Dreamcast roda bem em 720p                        |
+| PCSX-ReARMed      | PS1           | Core compilado (RetroArch)                           | Melhor core PS1 no RetroArch para Pi              |
+| SwanStation       | PS1           | Core compilado (RetroArch)                           | Desempenho ruim em alguns jogos (CTR, Crash Bash) |
 
 **Cores RetroArch:** não existem builds oficiais da libretro para aarch64. Todos os cores foram instalados manualmente do repositório [christianhaitian/retroarch-cores](https://github.com/christianhaitian/retroarch-cores) (aarch64).
 
@@ -129,29 +125,29 @@ Reduz o tamanho de página de memória de 16KB (padrão Pi 5) para 4KB. Necessá
 
 ## Projetos e scripts do sistema
 
-| Projeto | Caminho | Descrição |
-|---------|---------|-----------|
-| PS1 OSD Launcher | `~/ps1-osd-laucher` | Este repo. Frontend visual do console, inicia no boot |
+| Projeto           | Caminho                               | Descrição                                                                                                          |
+| ----------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| PS1 OSD Launcher  | `~/ps1-osd-laucher`                   | Este repo. Frontend visual do console, inicia no boot                                                              |
 | YouTube TV Player | `~/scripts/raspiberry-youtube-player` | Chromium em quiosque Wayland (Cage) com YouTube Leanback; `gamepad_mapper.py` traduz controle em teclas via uinput |
-| Backup de saves | `~/scripts/rclone-save-backup/` | rclone sincronizando saves RetroArch com Google Drive no boot e no desligamento |
-| sys-monitor | `~/scripts/sys-monitor.sh` | Coleta métricas de hardware a cada 5 min via journald |
-| wifi-monitor | `~/scripts/wifi-monitor.sh` | Escuta `iw event -t` e loga eventos de WiFi com tags estruturadas |
-| wifi-watchdog | `~/scripts/wifi-watchdog.sh` | Mitiga back-off FT-PSK: força reconexão via `nmcli con up` após 20s |
+| Backup de saves   | `~/scripts/rclone-save-backup/`       | rclone sincronizando saves RetroArch com Google Drive no boot e no desligamento                                    |
+| sys-monitor       | `~/scripts/sys-monitor.sh`            | Coleta métricas de hardware a cada 5 min via journald                                                              |
+| wifi-monitor      | `~/scripts/wifi-monitor.sh`           | Escuta `iw event -t` e loga eventos de WiFi com tags estruturadas                                                  |
+| wifi-watchdog     | `~/scripts/wifi-watchdog.sh`          | Mitiga back-off FT-PSK: força reconexão via `nmcli con up` após 20s                                                |
 
 ---
 
 ## Serviços systemd
 
-| Serviço | Tipo | Descrição |
-|---------|------|-----------|
-| `ps1-osd-laucher.service` | persist | Launcher principal — `Restart=on-failure`, roda como `douglasdans` |
-| `ps1-osd-update.service` | oneshot | Auto-update git no boot; **bug**: restart do launcher falha por falta de permissão polkit |
-| `retroarch-sync-boot.service` | oneshot | Sync saves do Google Drive para o Pi no boot |
-| `retroarch-sync-shutdown.service` | oneshot | Sync saves do Pi para o Google Drive no desligamento |
-| `smbd` / `nmbd` | persist | Samba SMBv1 — share `/mnt/usb-flash/PS2SMB` para PS2 OPL |
-| `ssh` | persist | Acesso remoto; keepalive: `ClientAliveInterval 30`, `ClientAliveCountMax 6` |
-| `wifi-monitor.service` | persist | Monitor de eventos WiFi; `Restart=always RestartSec=5` |
-| `sys-monitor.timer` | timer | Dispara `sys-monitor.service` a cada 5 min (`OnBootSec=2min, Persistent=true`) |
+| Serviço                           | Tipo    | Descrição                                                                                 |
+| --------------------------------- | ------- | ----------------------------------------------------------------------------------------- |
+| `ps1-osd-laucher.service`         | persist | Launcher principal — `Restart=on-failure`, roda como `douglasdans`                        |
+| `ps1-osd-update.service`          | oneshot | Auto-update git no boot; **bug**: restart do launcher falha por falta de permissão polkit |
+| `retroarch-sync-boot.service`     | oneshot | Sync saves do Google Drive para o Pi no boot                                              |
+| `retroarch-sync-shutdown.service` | oneshot | Sync saves do Pi para o Google Drive no desligamento                                      |
+| `smbd` / `nmbd`                   | persist | Samba SMBv1 — share `/mnt/usb-flash/PS2SMB` para PS2 OPL                                  |
+| `ssh`                             | persist | Acesso remoto; keepalive: `ClientAliveInterval 30`, `ClientAliveCountMax 6`               |
+| `wifi-monitor.service`            | persist | Monitor de eventos WiFi; `Restart=always RestartSec=5`                                    |
+| `sys-monitor.timer`               | timer   | Dispara `sys-monitor.service` a cada 5 min (`OnBootSec=2min, Persistent=true`)            |
 
 ---
 
@@ -160,8 +156,9 @@ Reduz o tamanho de página de memória de 16KB (padrão Pi 5) para 4KB. Necessá
 O Pi funciona como servidor de jogos PS2 via rede, substituindo os roteadores chineses 3G/4G usados normalmente para OPL.
 
 **Topologia de rede:**
+
 ```
-Internet ←→ WiFi (192.168.1.186) ←→ Pi ←→ Ethernet (192.168.0.10) ←→ PS2 (192.168.0.20)
+Internet ←→ WiFi (192.168.1.150) ←→ Pi ←→ Ethernet (192.168.0.10) ←→ PS2 (192.168.0.20)
 ```
 
 **SMB forçado em NT1 (SMBv1)** — único protocolo que o OPL suporta. Configurado em `/etc/samba/smb.conf` com `server min/max protocol = NT1`, signing desabilitado e otimizações de socket TCP.
@@ -189,6 +186,7 @@ journalctl -t sys-monitor --since "1 hour ago"
 ```
 
 Campos: `temp=` `throttled=` `mem=` `load=` `wifi=` `signal=` `tx=` `rx=` `tx_fail=` `uptime_wifi=`
+
 - `throttled=0x0` = sem throttling (normal)
 - `tx_fail` acumulando = problema de sinal WiFi
 
@@ -211,13 +209,13 @@ journalctl -p err -b --no-pager
 
 ## Issues conhecidos e status
 
-| # | Issue | Status | Detalhes |
-|---|-------|--------|----------|
-| 1 | `ps1-osd-update.service` falha no restart | **Aberto** | `ExecStartPost=systemctl restart` falha com "Interactive authentication required". Git pull funciona. Fix: regra polkit para permitir restart sem autenticação |
-| 2 | Race condition WiFi no boot | **Mitigado** | `ps1-osd-update` inicia antes do DNS funcional. `wifi-watchdog.sh` reconecta. Fix definitivo pendente |
-| 3 | FT-PSK back-off do wpa_supplicant | **Mitigado** | AP rejeita handshake (status_code=16); `wifi-monitor` detecta e força reconexão via `select_network 0` no boot |
-| 4 | `mpv: pw.conf: can't load config` | Ignorar | PipeWire sem config; mpv opera via ALSA sem impacto |
-| 5 | `xpad: usb_submit_urb failed -19` | Ignorar | Erro momentâneo de USB ao reconectar controle |
+| #   | Issue                                     | Status       | Detalhes                                                                                                                                                       |
+| --- | ----------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `ps1-osd-update.service` falha no restart | **Aberto**   | `ExecStartPost=systemctl restart` falha com "Interactive authentication required". Git pull funciona. Fix: regra polkit para permitir restart sem autenticação |
+| 2   | Race condition WiFi no boot               | **Mitigado** | `ps1-osd-update` inicia antes do DNS funcional. `wifi-watchdog.sh` reconecta. Fix definitivo pendente                                                          |
+| 3   | FT-PSK back-off do wpa_supplicant         | **Mitigado** | AP rejeita handshake (status_code=16); `wifi-monitor` detecta e força reconexão via `select_network 0` no boot                                                 |
+| 4   | `mpv: pw.conf: can't load config`         | Ignorar      | PipeWire sem config; mpv opera via ALSA sem impacto                                                                                                            |
+| 5   | `xpad: usb_submit_urb failed -19`         | Ignorar      | Erro momentâneo de USB ao reconectar controle                                                                                                                  |
 
 ---
 
@@ -225,30 +223,44 @@ journalctl -p err -b --no-pager
 
 > Qualquer mudança importante — código, configuração, hardware, infraestrutura — deve ser registrada aqui com data e motivação.
 
+### 2026-10-11
+
+- **Intro da Sony recriada a partir da BIOS** (substitui o `intro.mp4`): `tools/psxtrace` (C) emula um PS1 mínimo, boota a `scph5501.bin` com o drive fechado sem disco e grava a "partitura" — comandos de GPU e escritas na SPU — até a BIOS cortar pro menu. O launcher **não roda a BIOS**: só reproduz a partitura (`assets/bios_intro.trace`), o jingle pré-renderizado (`assets/bios_intro.wav`) e as texturas HD do logo (`assets/bios_textures/`, Real-ESRGAN `x4plus-anime`). Tudo versionado: o Pi recebe pronto no `git pull`
+- **Intro desenhada na GPU**: `pygame-ce` 2.5.8 (pip, no venv) substitui o `pygame` do apt — `Texture.draw_triangle` (SDL_RenderGeometry) roda via GLES no driver `v3d`; o SDL embutido no wheel funciona em KMSDRM e ALSA. No Pi: 161/161 quadros a 1080p, 0 ms de atraso (na CPU com numpy eram 55–92)
+- **Tempo do logo**: drive "tentando ler" por 9,8 s (`CD_SPINUP`), corte pra BIOS em ~20 s; depois o fundo roxo (`last_frame.png`) por 1 s com o fim do jingle, e o menu
+- **Removidos**: `assets/intro.mp4`, `ffpyplayer` e o fallback em vídeo
+- **IP WiFi do Pi** agora é `192.168.1.150`; o remote do repo no Pi se chama `forgejo` (Forgejo local no PC, `192.168.1.190:2222`)
+
 ### 2026-04-26
+
 - **Observabilidade completa implementada**: `sys-monitor.sh` (métricas hardware a cada 5min), `wifi-monitor.sh` (eventos de rede em tempo real), journald persistente (`Storage=persistent`, 7 dias / 200 MB)
 - **Logging estruturado no launcher**: todos os módulos (`ps1.launcher`, `ps1.menu`, `ps1.intro`, `ps1.controller`, `ps1.config`) logam via `src/logger.py` com RotatingFileHandler
 - **SSH keepalive**: `ClientAliveInterval 30 / ClientAliveCountMax 6` — elimina quedas por inatividade WiFi intermitente
 - **wifi-watchdog.sh**: mitiga back-off exponencial FT-PSK — força `nmcli con up` após 20s sem conexão
 
 ### 2026-04-18
+
 - **Flash de terminal eliminado**: splash da última frame da intro escrito direto no `/dev/fb0` via numpy/Pillow para transição limpa intro→pygame
 - **TTY ocultado no boot**: `_hide_tty()` via ioctl `KD_GRAPHICS` antes da intro, restaurado com `restore_tty()` ao encerrar
 
 ### 2026-03-21
+
 - **Menu com scroll e animação**: suporte a mais de 4 itens; scroll animado de 120ms ao navegar (estado: `scroll_offset`, `slide_start`, `slide_dir`)
 - **PPSSPP adicionado**: entry no `apps.ini` via cage/Wayland, mesmo padrão do DuckStation
 
 ### 2026-03-10
+
 - **Fonte bitmap PS1**: substituída PressStart2P TTF pela fonte sprite sheet extraída do BIOS PS1 original; renderer `src/ps1_font.py` com escala, tint e kerning
 - **Texturas 4x dos itens**: splashes substituídos por versões alta resolução com `smoothscale` bilinear
 - **Background PNG**: `ps1-bios.jpg` → `ps1-bios.png` para eliminar artefatos JPEG
 - **Transição de seleção**: reduzida de 1000ms para 800ms (mais responsivo)
 
 ### 2026-03-07
+
 - **Fade ao selecionar item**: texto transiciona de branco para preto nos 800ms antes do launch — feedback visual de seleção
 
 ### 2026-03-01 — fase visual completa
+
 - **Banners de itens estilo PS1**: cada item exibe textura do BIOS PS1 com nome renderizado sobre ela; banners atribuídos por índice com embaralhamento
 - **Asset `main-menu.png`**: label programático do menu substituído pela imagem original do BIOS PS1
 - **Intro video PS1**: `assets/intro.mp4` adicionado (não versionado em git)
@@ -257,6 +269,7 @@ journalctl -p err -b --no-pager
 - **Serviço de update separado**: `ps1-osd-update.service` (oneshot) isolado do launcher principal; TTY ocultado no boot
 
 ### 2026-02-28 — fundação técnica
+
 - **SDL_GameControllerDB**: suporte a 2200+ controles (PS, Xbox, 8BitDo, genéricos) via `assets/gamecontrollerdb.txt`; botões mapeados por constantes inteiras SDL2 estáveis
 - **DRM liberado antes de subprocess**: `pygame.display.quit()` antes de lançar emulador e `pygame.display.init()` ao retornar — resolve conflito de acesso exclusivo ao framebuffer
 - **SDL vars limpas no subprocess**: `env SDL_*` removidas do ambiente passado ao emulador para evitar conflito de drivers
@@ -265,6 +278,7 @@ journalctl -p err -b --no-pager
 - **Fix de page size**: `kernel=kernel8.img` em `config.txt` — reduz página de 16KB para 4KB para compatibilidade com PPSSPP e Flycast
 
 ### 2026-03-01 (infraestrutura — blog parte 2)
+
 - **RetroArch via apt**: escolhido sobre flatpak e compilação manual; suficiente para o uso atual
 - **Cores aarch64**: instalados manualmente do repositório christianhaitian (não existem builds oficiais libretro para aarch64)
 - **Samba SMBv1**: configurado para PS2 OPL com `server min/max protocol = NT1`, signing desabilitado
@@ -273,6 +287,7 @@ journalctl -p err -b --no-pager
 - **SSHFS no Windows**: acesso ao filesystem do Pi via SSH sem VS Code Remote Server (muito pesado)
 
 ### 2026-02-27 — início do projeto
+
 - Estrutura do launcher em fases: config reader → intro player → controller input → OSD menu → entry point → systemd
 - Menu OSD visual fiel ao PS1 BIOS original
 - `After=basic.target` no serviço — boot rápido, não espera rede
@@ -288,7 +303,8 @@ journalctl -p err -b --no-pager
 systemd boot
  ├── ps1-osd-update.service  →  git pull  →  (restart launcher — bug: falha por polkit)
  └── ps1-osd-laucher.service →  python3 launcher.py
-                                      ├── mpv: intro.mp4 (--vo=drm no Pi)
+                                      ├── intro da BIOS: replay da partitura na GPU (renderer SDL)
+                                      │     └── fundo roxo (last_frame.png) por 1 s
                                       └── pygame OSD menu (KMSDRM)
                                             ├── lê apps.ini
                                             ├── navegação por controle
@@ -300,15 +316,17 @@ systemd boot
 
 ### Módulos
 
-| Arquivo | Responsabilidade |
-|---------|-----------------|
-| `launcher.py` | Entry point: detecta plataforma, configura SDL, encadeia intro → menu |
-| `src/config.py` | Lê `apps.ini` → lista de `(label, command)` |
-| `src/intro.py` | mpv subprocess + splash no framebuffer durante transição intro→pygame |
-| `src/controller.py` | SDL2 GameController API → enum `Action`; hotplug em runtime |
-| `src/menu.py` | Loop principal: render, navegação, launch de apps |
-| `src/ps1_font.py` | Renderer de sprite sheet da fonte PS1 (PNG + JSON de metadados) |
-| `src/logger.py` | Logging hierárquico `ps1.*` com RotatingFileHandler + stderr |
+| Arquivo             | Responsabilidade                                                      |
+| ------------------- | --------------------------------------------------------------------- |
+| `launcher.py`       | Entry point: detecta plataforma, configura SDL, encadeia intro → menu |
+| `src/config.py`     | Lê `apps.ini` → lista de `(label, command)`                           |
+| `src/intro.py`      | Splash, espera do boot (`wait_system_ready`) e TTY (`hide_tty`)        |
+| `src/bios_intro.py` | Toca a intro da BIOS: replay no relógio, áudio, fundo roxo, troca GPU→surface |
+| `src/psx/`          | Modelos do PS1: `gpu.py` (VRAM nativa), `gpurender.py` (desenho na GPU), `hires.py` (fallback CPU), `spu.py`, `textures.py`, `trace.py`, `replay.py` |
+| `src/controller.py` | SDL2 GameController API → enum `Action`; hotplug em runtime           |
+| `src/menu.py`       | Loop principal: render, navegação, launch de apps                     |
+| `src/ps1_font.py`   | Renderer de sprite sheet da fonte PS1 (PNG + JSON de metadados)       |
+| `src/logger.py`     | Logging hierárquico `ps1.*` com RotatingFileHandler + stderr          |
 
 ### Detalhes críticos de implementação
 
@@ -324,28 +342,30 @@ systemd boot
 
 ### `apps.ini` — configuração atual
 
-| Label | Tipo | Comando |
-|-------|------|---------|
-| RetroArch | emulador | `retroarch` |
-| Duckstation | emulador | cage (Wayland) + AppImage |
-| PPSSPP | emulador | cage (Wayland) + binary |
-| Youtube | script | `~/scripts/raspiberry-youtube-player/youtube.sh` |
-| Reboot | sistema | `!sudo reboot` |
-| Shutdown | sistema | `!sudo shutdown -h now` |
+| Label       | Tipo     | Comando                                          |
+| ----------- | -------- | ------------------------------------------------ |
+| RetroArch   | emulador | `retroarch`                                      |
+| Duckstation | emulador | cage (Wayland) + AppImage                        |
+| PPSSPP      | emulador | cage (Wayland) + binary                          |
+| Youtube     | script   | `~/scripts/raspiberry-youtube-player/youtube.sh` |
+| Reboot      | sistema  | `!sudo reboot`                                   |
+| Shutdown    | sistema  | `!sudo shutdown -h now`                          |
 
 Emuladores Wayland requerem `XDG_RUNTIME_DIR=/run/user/1000` e `XCURSOR_THEME=invisible` — já no `apps.ini`.
 
 ### Assets
 
-| Asset | Função |
-|-------|--------|
-| `assets/intro.mp4` | Vídeo de intro Sony (não versionado) |
-| `assets/last_frame.png` | Splash no framebuffer durante transição intro→pygame |
-| `assets/ps1-bios.png` | Background do menu (1920×1080) |
-| `assets/main-menu.png` | Logo "Memory Card" do BIOS PS1 original |
-| `assets/ps1_font_sheet.png` + `ps1_font.json` | Fonte PS1 bitmap |
-| `assets/gamecontrollerdb.txt` | SDL_GameControllerDB (2200+ mapeamentos) |
-| `assets/items-splash/*.png` | Banners de fundo dos itens do menu |
+| Asset                                         | Função                                               |
+| --------------------------------------------- | ---------------------------------------------------- |
+| `assets/bios_intro.trace`                     | Partitura da intro (GPU/SPU) gravada da BIOS         |
+| `assets/bios_intro.wav`                       | Jingle pré-renderizado da partitura                  |
+| `assets/bios_textures/*.png`                  | Texturas HD do logo (Real-ESRGAN), por hash          |
+| `assets/last_frame.png`                       | Fundo roxo da BIOS (sem menu) após a intro           |
+| `assets/ps1-bios.png`                         | Background do menu (1920×1080)                       |
+| `assets/main-menu.png`                        | Logo "Memory Card" do BIOS PS1 original              |
+| `assets/ps1_font_sheet.png` + `ps1_font.json` | Fonte PS1 bitmap                                     |
+| `assets/gamecontrollerdb.txt`                 | SDL_GameControllerDB (2200+ mapeamentos)             |
+| `assets/items-splash/*.png`                   | Banners de fundo dos itens do menu                   |
 
 ### Convenções de commits
 
