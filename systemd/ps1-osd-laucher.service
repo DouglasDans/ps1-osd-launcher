@@ -3,8 +3,10 @@ Description=PS1 OSD Laucher
 # Sobe o mais cedo possível: só espera filesystem + udev (necessários
 # para /dev/dri e input). Sem DefaultDependencies o unit não esperaria
 # shutdown.target — Conflicts/Before garantem parada ordenada.
+# Depois do getty do tty1: ao subir ele reseta o VT (TTYReset) e desfaz o
+# KD_GRAPHICS do hide_tty() — o console voltaria por cima da intro.
 DefaultDependencies=no
-After=local-fs.target systemd-udevd.service plymouth-start.service
+After=local-fs.target systemd-udevd.service plymouth-start.service getty@tty1.service
 Wants=local-fs.target
 Conflicts=shutdown.target
 Before=shutdown.target
