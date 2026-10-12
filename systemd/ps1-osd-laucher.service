@@ -4,7 +4,7 @@ Description=PS1 OSD Laucher
 # para /dev/dri e input). Sem DefaultDependencies o unit não esperaria
 # shutdown.target — Conflicts/Before garantem parada ordenada.
 DefaultDependencies=no
-After=local-fs.target systemd-udevd.service
+After=local-fs.target systemd-udevd.service plymouth-start.service
 Wants=local-fs.target
 Conflicts=shutdown.target
 Before=shutdown.target
@@ -15,6 +15,10 @@ User=douglasdans
 WorkingDirectory=/home/douglasdans/ps1-osd-laucher
 Environment=SDL_VIDEODRIVER=kmsdrm
 Environment=SDL_FBDEV=/dev/fb0
+# O splash do Plymouth é DRM master: enquanto ele vive, o SDL descarta a
+# placa ("kmsdrm not available"). Encerra mantendo a última imagem na tela;
+# "+" roda como root, "-" ignora o erro se ele já tiver saído.
+ExecStartPre=+-/usr/bin/plymouth quit --retain-splash
 ExecStart=/home/douglasdans/ps1-osd-laucher/venv/bin/python3 /home/douglasdans/ps1-osd-laucher/launcher.py
 # Se o DRM/ALSA ainda não existirem no boot antecipado, o SDL falha e a
 # re-tentativa em 1s cobre a janela até o udev criar os devices.
