@@ -23,6 +23,9 @@ class Action(Enum):
 
 _DEBOUNCE_MS = 150
 _last_ms: dict = {}
+# O pygame-ce fecha o controle quando o objeto é coletado (o pygame original
+# segurava uma referência interna) — guardamos as nossas.
+_controllers: list = []
 
 
 def init() -> None:
@@ -35,7 +38,7 @@ def init() -> None:
     count = sdl2_ctrl.get_count()
     for i in range(count):
         if sdl2_ctrl.is_controller(i):
-            sdl2_ctrl.Controller(i)
+            _controllers.append(sdl2_ctrl.Controller(i))
     log.info("Controles detectados na inicialização: %d", count)
 
 
@@ -46,7 +49,7 @@ def get_action(event: pygame.event.Event) -> Action | None:
     # Novo controle conectado em runtime
     if event.type == pygame.CONTROLLERDEVICEADDED:
         if sdl2_ctrl.is_controller(event.device_index):
-            sdl2_ctrl.Controller(event.device_index)
+            _controllers.append(sdl2_ctrl.Controller(event.device_index))
             log.info("Controle conectado: índice=%d", event.device_index)
         return None
 
