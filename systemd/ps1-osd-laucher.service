@@ -24,6 +24,7 @@ ExecStartPre=+-/usr/bin/plymouth quit --retain-splash
 ExecStart=/home/douglasdans/ps1-osd-laucher/venv/bin/python3 /home/douglasdans/ps1-osd-laucher/launcher.py
 # Se o DRM/ALSA ainda não existirem no boot antecipado, o SDL falha e a
 # re-tentativa em 1s cobre a janela até o udev criar os devices.
+SyslogIdentifier=ps1-launcher
 Restart=on-failure
 RestartSec=1
 

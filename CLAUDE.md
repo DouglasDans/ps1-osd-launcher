@@ -175,8 +175,9 @@ Internet ←→ WiFi (192.168.1.150) ←→ Pi ←→ Ethernet (192.168.0.10) �
 
 ```bash
 journalctl -u ps1-osd-laucher -f                          # logs ao vivo
-journalctl -u ps1-osd-laucher -n 50 --no-pager            # últimas 50 linhas
-~/.local/share/ps1-osd-launcher/launcher.log               # arquivo rotativo local
+journalctl -u ps1-osd-laucher -n 50 --no-pager            # últimas 50 linhas (launcher + apps)
+journalctl -t ps1-launcher                                 # só o launcher
+journalctl -t duckstation / -t ppsspp / -t retroarch       # só o app (tag = nome no apps.ini, slug)
 ```
 
 ### Hardware (sys-monitor)

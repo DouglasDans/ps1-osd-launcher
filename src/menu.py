@@ -2,6 +2,8 @@ import glob
 import logging
 import os
 import random
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -96,7 +98,7 @@ def run(screen: pygame.Surface, apps: list[tuple[str, str]]) -> None:
         if transitioning:
             t = min((now - transition_start) / TRANSITION_DURATION, 1.0)
             if t >= 1.0:
-                screen = _launch(apps[selected][1])
+                screen = _launch(*apps[selected])
                 transitioning = False
                 bg_raw = pygame.image.load(BG_PATH).convert()
                 bg = pygame.transform.scale(bg_raw, (WIDTH, HEIGHT))
@@ -142,19 +144,30 @@ def run(screen: pygame.Surface, apps: list[tuple[str, str]]) -> None:
         clock.tick(30)
 
 
-def _launch(cmd: str) -> pygame.Surface:
+def _journal_tag(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def _launch_argv(name: str, cmd: str) -> list[str]:
+    # systemd-cat dá exec no comando: o returncode é o do app, e o stdout/stderr
+    # vai pro journal com a tag do app (journalctl -t duckstation) em vez de python3.
+    return ["systemd-cat", "-t", _journal_tag(name), "--", "sh", "-c", cmd]
+
+
+def _launch(name: str, cmd: str) -> pygame.Surface:
     quit_after = cmd.startswith("!")
     if quit_after:
         cmd = cmd[1:]
 
-    log.info("Lançando: %s", cmd)
+    log.info("Lançando: app=%s cmd=%s", name, cmd)
     pygame.display.quit()
 
     clean_env = {k: v for k, v in os.environ.items() if not k.startswith("SDL_")}
+    argv = _launch_argv(name, cmd) if shutil.which("systemd-cat") else ["sh", "-c", cmd]
     t0 = time.monotonic()
-    result = subprocess.run(cmd, shell=True, env=clean_env)
+    result = subprocess.run(argv, env=clean_env)
     elapsed = time.monotonic() - t0
-    log.info("App encerrado: returncode=%d, duração=%.1fs", result.returncode, elapsed)
+    log.info("App encerrado: app=%s returncode=%d duração=%.1fs", name, result.returncode, elapsed)
 
     if quit_after:
         sys.exit(0)
